@@ -38,16 +38,31 @@ export function valuesArrayToHeaderData(values: BlockHeaderBytes): HeaderData {
     mixHash,
     nonce,
     baseFeePerGas,
+    verkleProof,
+    verklePreStateRaw,
     withdrawalsRoot,
     excessDataGas,
   ] = values
 
-  if (values.length > 18) {
+  if (values.length > 20) {
     throw new Error('invalid header. More values than expected were received')
   }
   if (values.length < 15) {
     throw new Error('invalid header. Less values than expected were received')
   }
+
+  // TODO: Consider moving this in the header constructor helpers?
+  const verklePreState = (verklePreStateRaw as unknown as Buffer[][]).reduce<any>(
+    (previousValue: { [key: string]: string }, currentValue: Buffer[]) => {
+      const [key, value] = currentValue
+      previousValue[toType(key, TypeOutput.PrefixedHexString)] = toType(
+        value,
+        TypeOutput.PrefixedHexString
+      )
+      return previousValue
+    },
+    {}
+  )
 
   return {
     parentHash,
@@ -66,6 +81,8 @@ export function valuesArrayToHeaderData(values: BlockHeaderBytes): HeaderData {
     mixHash,
     nonce,
     baseFeePerGas,
+    verkleProof,
+    verklePreState,
     withdrawalsRoot,
     excessDataGas,
   }

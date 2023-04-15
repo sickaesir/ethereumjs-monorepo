@@ -25,8 +25,9 @@ import { hexToBytes } from 'ethereum-cryptography/utils'
 import { CLIQUE_EXTRA_SEAL, CLIQUE_EXTRA_VANITY } from './clique'
 import { valuesArrayToHeaderData } from './helpers'
 
-import type { BlockHeaderBytes, BlockOptions, HeaderData, JsonHeader } from './types'
+import type { BlockHeaderBytes, BlockOptions, HeaderData, JsonHeader, VerkleState } from './types'
 import type { CliqueConfig } from '@ethereumjs/common'
+import type { PrefixedHexString } from '@ethereumjs/util'
 
 interface HeaderCache {
   hash: Uint8Array | undefined
@@ -56,6 +57,12 @@ export class BlockHeader {
   public readonly baseFeePerGas?: bigint
   public readonly withdrawalsRoot?: Uint8Array
   public readonly excessDataGas?: bigint
+  /**
+   * Verkle Proof Data (experimental)
+   * Fake-EIP 999001 (see Common library)
+   */
+  public readonly verkleProof?: PrefixedHexString
+  public readonly verklePreState?: VerkleState
 
   public readonly _common: Common
 
@@ -159,6 +166,8 @@ export class BlockHeader {
       extraData: new Uint8Array(0),
       mixHash: zeros(32),
       nonce: zeros(8),
+      verkleProof: undefined,
+      verklePreState: undefined,
     }
 
     const parentHash = toType(headerData.parentHash, TypeOutput.Uint8Array) ?? defaults.parentHash
@@ -180,6 +189,9 @@ export class BlockHeader {
     const extraData = toType(headerData.extraData, TypeOutput.Uint8Array) ?? defaults.extraData
     const mixHash = toType(headerData.mixHash, TypeOutput.Uint8Array) ?? defaults.mixHash
     const nonce = toType(headerData.nonce, TypeOutput.Uint8Array) ?? defaults.nonce
+    let verkleProof =
+      toType(headerData.verkleProof, TypeOutput.PrefixedHexString) ?? defaults.verkleProof
+    let verklePreState = headerData.verklePreState ?? defaults.verklePreState
 
     const hardforkByBlockNumber = options.hardforkByBlockNumber ?? false
     if (hardforkByBlockNumber || options.hardforkByTTD !== undefined) {
@@ -195,6 +207,15 @@ export class BlockHeader {
         : undefined,
       withdrawalsRoot: this._common.isActivatedEIP(4895) ? KECCAK256_RLP : undefined,
       excessDataGas: this._common.isActivatedEIP(4844) ? BigInt(0) : undefined,
+    }
+
+    if (this._common.isActivatedEIP(999001)) {
+      if (verkleProof === undefined) {
+        verkleProof = '0x'
+      }
+      if (verklePreState === undefined) {
+        verklePreState = {}
+      }
     }
 
     const baseFeePerGas =
@@ -332,7 +353,21 @@ export class BlockHeader {
       }
     }
 
-    if (this._common.isActivatedEIP(4895) === true) {
+    // Validation for Verkle blocks
+    // Unnecessary in this implementation since we're providing defaults if those fields are undefined
+    if (this._common.isActivatedEIP(999001)) {
+      // check if verkleProof is present
+      if (this.verkleProof === undefined) {
+        throw new Error(`Invalid block: verkle proof missing`)
+      }
+
+      // check if verklePreState is present
+      if (this.verklePreState === undefined) {
+        throw new Error(`Invalid block: verkle preState missing`)
+      }
+    }
+
+    if (this._common.isActivatedEIP(4895)) {
       if (this.withdrawalsRoot === undefined) {
         const msg = this._errorMsg('EIP4895 block has no withdrawalsRoot field')
         throw new Error(msg)
