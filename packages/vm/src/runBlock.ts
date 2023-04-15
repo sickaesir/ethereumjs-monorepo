@@ -29,6 +29,7 @@ import type {
 } from './types'
 import type { VM } from './vm'
 import type { EVMStateAccess } from '@ethereumjs/evm'
+import type { StatelessVerkleStateManager } from '@ethereumjs/statemanager'
 
 const debug = createDebugLogger('vm:block')
 
@@ -92,6 +93,15 @@ export async function runBlock(this: VM, opts: RunBlockOpts): Promise<RunBlockRe
     if (this.DEBUG) {
       debug(`Apply DAO hardfork`)
     }
+
+    // If Verkle EIP is activated, populate StateManager with preState
+    if (this._common.isActivatedEIP(999001)) {
+      ;(this._opts.stateManager as StatelessVerkleStateManager).initPreState(
+        block.header.verkleProof!,
+        block.header.verklePreState!
+      )
+    }
+
     await state.checkpoint()
     await _applyDAOHardfork(state)
     await state.commit()
@@ -103,7 +113,8 @@ export async function runBlock(this: VM, opts: RunBlockOpts): Promise<RunBlockRe
     debug(`block checkpoint`)
   }
 
-  let result
+  let result: Awaited<ReturnType<typeof applyBlock>>
+
   try {
     result = await applyBlock.bind(this)(block, opts)
     if (this.DEBUG) {
@@ -145,7 +156,8 @@ export async function runBlock(this: VM, opts: RunBlockOpts): Promise<RunBlockRe
       header: { ...block.header, ...generatedFields },
     }
     block = Block.fromBlockData(blockData, { common: this._common })
-  } else {
+  } else if (!this._common.isActivatedEIP(999001)) {
+    // Only validate the following headers if verkle blocks aren't activated
     if (equalsBytes(result.receiptsRoot, block.header.receiptTrie) === false) {
       if (this.DEBUG) {
         debug(
