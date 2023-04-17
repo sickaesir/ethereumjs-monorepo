@@ -257,6 +257,8 @@ export class BlockHeader {
     this.baseFeePerGas = baseFeePerGas
     this.withdrawalsRoot = withdrawalsRoot
     this.excessDataGas = excessDataGas
+    this.verklePreState = verklePreState
+    this.verkleProof = verkleProof
     this._genericFormatValidation()
     this._validateDAOExtraData()
 
@@ -356,12 +358,10 @@ export class BlockHeader {
     // Validation for Verkle blocks
     // Unnecessary in this implementation since we're providing defaults if those fields are undefined
     if (this._common.isActivatedEIP(999001)) {
-      // check if verkleProof is present
       if (this.verkleProof === undefined) {
         throw new Error(`Invalid block: verkle proof missing`)
       }
 
-      // check if verklePreState is present
       if (this.verklePreState === undefined) {
         throw new Error(`Invalid block: verkle preState missing`)
       }
