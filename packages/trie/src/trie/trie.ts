@@ -316,7 +316,7 @@ export class Trie {
     stack: TrieNode[],
     progress: Nibbles,
     _remaining: Nibbles
-  ): Promise<TrieNode | null> {
+  ): Promise<Path | null> {
     const node = await this.lookupNode(nodeKey)
 
     if (node === null) {
@@ -325,6 +325,9 @@ export class Trie {
     stack.push(node)
 
     if (node instanceof BranchNode) {
+      if (_remaining.length === 0) {
+        return { node, stack, remaining: _remaining }
+      }
       const current = _remaining[0]!
       progress.push(current)
       const remaining = _remaining.slice(1)
@@ -335,6 +338,9 @@ export class Trie {
         return null
       }
     } else if (node instanceof ExtensionNode) {
+      if (_remaining.length === 0) {
+        return { node, stack, remaining: _remaining }
+      }
       const matchingLen = matchingNibbleLength(_remaining, node._nibbles)
       const current = _remaining.slice(0, matchingLen)
       progress.push(...current)
@@ -342,7 +348,7 @@ export class Trie {
       if (doKeysMatch(_remaining, node.key())) {
         const child = await this.lookupNode(node.raw()[1])
         if (child) {
-          return child
+          return { node: child, stack, remaining: _remaining }
         }
       }
       if (matchingLen !== node.key().length) {
@@ -353,7 +359,7 @@ export class Trie {
       }
     } else if (node instanceof LeafNode) {
       if (doKeysMatch(_remaining, node.key())) {
-        return node
+        return { node, stack, remaining: _remaining }
       } else {
         return null
       }
