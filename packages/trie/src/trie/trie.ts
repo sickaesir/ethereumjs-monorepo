@@ -826,8 +826,7 @@ export class Trie {
     key: Uint8Array,
     proof: Proof
   ): Promise<Uint8Array | null> {
-    const proofTrie = new Trie({
-      ...this._opts,
+    const proofTrie = await Trie.create({
       root: rootHash,
     })
     try {
@@ -836,7 +835,7 @@ export class Trie {
       throw new Error('Invalid proof nodes given')
     }
     try {
-      const value = await proofTrie.get(this.appliedKey(key), true)
+      const value = await proofTrie.get(key, true)
       return value
     } catch (err: any) {
       if (err.message === 'Missing node in DB') {
