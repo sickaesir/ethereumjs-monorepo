@@ -120,15 +120,15 @@ tape('simple merkle proofs generation and verification', function (tester) {
 
     let proof = await trie.createProof(utf8ToBytes('key1'))
     let val = await trie.verifyProof(trie.root(), utf8ToBytes('key1'), proof)
-    t.equal(bytesToUtf8(val!), '0123456789012345678901234567890123456789Very_Long')
+    t.deepEqual(val, utf8ToBytes('0123456789012345678901234567890123456789Very_Long'))
 
     proof = await trie.createProof(utf8ToBytes('key2'))
     val = await trie.verifyProof(trie.root(), utf8ToBytes('key2'), proof)
-    t.equal(bytesToUtf8(val!), 'short')
+    t.deepEqual(val, utf8ToBytes('short'))
 
     proof = await trie.createProof(utf8ToBytes('key3'))
     val = await trie.verifyProof(trie.root(), utf8ToBytes('key3'), proof)
-    t.equal(bytesToUtf8(val!), '1234567890123456789012345678901')
+    t.deepEqual(val, utf8ToBytes('1234567890123456789012345678901'))
 
     t.end()
   })

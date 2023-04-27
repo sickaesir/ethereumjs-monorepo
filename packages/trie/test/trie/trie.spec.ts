@@ -195,8 +195,8 @@ for (const { constructor, defaults, title } of [
       try {
         await trie.put(BASE_DB_KEY, utf8ToBytes('bar'))
         st.fail("Attempting to set '__root__' should fail but it did not.")
-      } catch ({ message }) {
-        st.equal(message, "Attempted to set '__root__' key but it is not allowed.")
+      } catch (error: any) {
+        st.equal(error.message, "Attempted to set '__root__' key but it is not allowed.")
       }
 
       st.end()

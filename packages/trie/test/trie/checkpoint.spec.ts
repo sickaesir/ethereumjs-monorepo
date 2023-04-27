@@ -16,7 +16,7 @@ tape('testing checkpoints', function (tester) {
   let postRoot: string
 
   it('setup', async function (t) {
-    trie = new Trie()
+    trie = await Trie.create()
     await trie.put(utf8ToBytes('do'), utf8ToBytes('verb'))
     await trie.put(utf8ToBytes('doge'), utf8ToBytes('coin'))
     preRoot = bytesToHex(trie.root())
@@ -24,10 +24,14 @@ tape('testing checkpoints', function (tester) {
   })
 
   it('should copy trie and get value added to original trie', async function (t) {
-    trieCopy = trie.copy()
-    t.equal(bytesToHex(trieCopy.root()), preRoot)
+    trieCopy = await trie.copy()
+    t.equal(
+      bytesToHex(trieCopy.root()),
+      preRoot,
+      'trie copy should have same root as original trie'
+    )
     const res = await trieCopy.get(utf8ToBytes('do'))
-    t.ok(equalsBytes(utf8ToBytes('verb'), res!))
+    t.deepEqual(res, utf8ToBytes('verb'), 'should get value from trie copy')
     t.end()
   })
 
@@ -57,15 +61,15 @@ tape('testing checkpoints', function (tester) {
   })
 
   it('should copy trie and get upstream and cache values after checkpoint', async function (t) {
-    trieCopy = trie.copy()
+    trieCopy = await trie.copy()
     t.equal(bytesToHex(trieCopy.root()), postRoot)
     // @ts-expect-error
     t.equal(trieCopy._db.checkpoints.length, 1)
     t.ok(trieCopy.hasCheckpoints())
     const res = await trieCopy.get(utf8ToBytes('do'))
-    t.ok(equalsBytes(utf8ToBytes('verb'), res!))
+    t.deepEqual(res, utf8ToBytes('verb'), 'trieCopy.get(do) should return "verb"')
     const res2 = await trieCopy.get(utf8ToBytes('love'))
-    t.ok(equalsBytes(utf8ToBytes('emotion'), res2!))
+    t.deepEqual(res2, utf8ToBytes('emotion'), 'trieCopy.get(love) should return "emotion"')
     t.end()
   })
 
@@ -79,7 +83,7 @@ tape('testing checkpoints', function (tester) {
     await trie.put(utf8ToBytes('key1'), utf8ToBytes('value1'))
     trie.checkpoint()
     await trie.put(utf8ToBytes('key2'), utf8ToBytes('value2'))
-    const trieCopy = trie.copy()
+    const trieCopy = await trie.copy()
     const value = await trieCopy.get(utf8ToBytes('key1'))
     t.equal(bytesToUtf8(value!), 'value1')
     t.end()
@@ -232,7 +236,7 @@ tape('testing checkpoints', function (tester) {
     CommittedState.checkpoint()
 
     // Copy CommittedState
-    const MemoryState = CommittedState.copy()
+    const MemoryState = await CommittedState.copy()
     MemoryState.checkpoint()
 
     // Test changes on MemoryState

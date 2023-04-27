@@ -5,7 +5,6 @@ import {
   hexStringToBytes,
   utf8ToBytes,
 } from '@ethereumjs/util'
-import { createHash } from 'crypto'
 import * as tape from 'tape'
 
 import { MapDB, ROOT_DB_KEY, Trie } from '../../src'
@@ -23,7 +22,7 @@ tape('SecureTrie', function (t) {
   })
 
   t.test('copy trie', async function (st) {
-    const t = trie.copy()
+    const t = await trie.copy()
     const res = await t.get(k)
     st.ok(equalsBytes(v, res!))
     st.end()
@@ -31,11 +30,12 @@ tape('SecureTrie', function (t) {
 
   tape('SecureTrie proof', function (t) {
     t.test('create a merkle proof and verify it with a single short key', async function (st) {
-      const trie = new Trie({ useKeyHashing: true, db: new MapDB() })
+      const trie = await Trie.create()
       await trie.put(utf8ToBytes('key1aa'), utf8ToBytes('01234'))
 
       const proof = await trie.createProof(utf8ToBytes('key1aa'))
       const val = await trie.verifyProof(trie.root(), utf8ToBytes('key1aa'), proof)
+      // console.log({ proof, val })
       st.equal(bytesToUtf8(val!), '01234')
       st.end()
     })
@@ -89,8 +89,8 @@ tape('SecureTrie', function (t) {
         await trie.put(ROOT_DB_KEY, utf8ToBytes('bar'))
 
         st.fail("Attempting to set '__root__' should fail but it did not.")
-      } catch ({ message }) {
-        st.equal(message, "Attempted to set '__root__' key but it is not allowed.")
+      } catch (e: any) {
+        st.equal(e.message, "Attempted to set '__root__' key but it is not allowed.")
       }
     })
   })
@@ -145,44 +145,101 @@ tape('secure tests should not crash', async function (t) {
   t.end()
 })
 
-tape('SecureTrie.copy', function (it) {
+tape('Secureawait trie.copy', function (it) {
   it.test('created copy includes values added after checkpoint', async function (t) {
     const trie = new Trie({ useKeyHashing: true, db: new MapDB() })
 
     await trie.put(utf8ToBytes('key1'), utf8ToBytes('value1'))
-    trie.checkpoint()
     await trie.put(utf8ToBytes('key2'), utf8ToBytes('value2'))
-    const trieCopy = trie.copy()
+    trie.checkpoint()
+    const trieCopy = await trie.copy()
     const value = await trieCopy.get(utf8ToBytes('key2'))
-    t.equal(bytesToUtf8(value!), 'value2')
+    t.ok(value, `trieCopy.get(key2): ${value ? bytesToUtf8(value) : 'null'}`)
     t.end()
   })
 
   it.test('created copy includes values added before checkpoint', async function (t) {
-    const trie = new Trie({ useKeyHashing: true, db: new MapDB() })
-
-    await trie.put(utf8ToBytes('key1'), utf8ToBytes('value1'))
+    const trie = await Trie.create({})
+    await trie.put(utf8ToBytes('address1'), utf8ToBytes('value1'))
     trie.checkpoint()
-    await trie.put(utf8ToBytes('key2'), utf8ToBytes('value2'))
-    const trieCopy = trie.copy()
-    const value = await trieCopy.get(utf8ToBytes('key1'))
-    t.equal(bytesToUtf8(value!), 'value1')
+    await trie.commit()
+    trie.flushCheckpoints()
+    await trie.put(utf8ToBytes('address2'), utf8ToBytes('value2'))
+    const trieCopy = await trie.copy()
+    const value = await trieCopy.get(utf8ToBytes('address1'))
+    t.deepEqual(value, utf8ToBytes('value1'), 'value 1 should be in trie copy')
+    const lookup = await trieCopy.lookupNode([Uint8Array.from([32]), utf8ToBytes('value1')])
+    const lookup2 = await trieCopy.lookupNode([Uint8Array.from([32]), utf8ToBytes('value2')])
+    t.deepEqual(lookup?.value(), utf8ToBytes('value1'), 'node with value 1 should be in trie copy')
+
+    t.deepEqual(lookup2?.value(), utf8ToBytes('value2'), 'node with value 2 should be in trie copy')
+    // await trie.walkTrie(trie.root(), async (noderef, node, key, wc) => {
+    //   if (node instanceof LeafNode) {
+    //     console.log({
+    //       trie: 'LEAFNODE',
+    //       noderef: {
+    //         0: noderef[0],
+    //         1: bytesToUtf8(noderef[1] as any),
+    //       },
+    //       get: (await trie.lookupNode(noderef)) !== null,
+    //       nibbles: bytesToUtf8(Uint8Array.from([key as any])),
+    //       key: node.key(),
+    //       value: bytesToUtf8(node.value()),
+    //     })
+    //   } else if (node instanceof ExtensionNode) {
+    //     console.log({
+    //       trie: 'EXTENSIONNODE',
+    //       noderef,
+    //       get: (await trie.lookupNode(noderef)) !== null,
+
+    //       nibbles: key,
+    //       key: bytesToUtf8(nibblestoBytes(node.key())),
+    //       value: node.value(),
+    //     })
+    //   } else if (node instanceof BranchNode) {
+    //     console.log({
+    //       trie: 'BRANCHNODE',
+    //       noderef,
+    //       get: (await trie.lookupNode(noderef)) !== null,
+    //       nibbles: bytesToUtf8(nibblestoBytes(key)),
+    //       children: node.getChildren().map((child) => {
+    //         return {
+    //           index: child[0],
+    //           0: (child[1][0] as Uint8Array)[0],
+    //           1: bytesToUtf8(child[1][1] as any),
+    //         }
+    //       }),
+    //     })
+    //   }
+    //   if (node) {
+    //     wc.allChildren(node)
+    //   }
+    // })
     t.end()
   })
 
   it.test('created copy uses the correct hash function', async function (t) {
-    const trie = new Trie({
+    const trie = await Trie.create({
       db: new MapDB(),
       useKeyHashing: true,
-      useKeyHashingFunction: (value) => createHash('sha256').update(value).digest(),
+      useKeyHashingFunction: (value) => {
+        return Uint8Array.from([...utf8ToBytes('HASHED'), ...value])
+      },
     })
+    const trieCopy = await trie.copy()
 
-    await trie.put(utf8ToBytes('key1'), utf8ToBytes('value1'))
-    trie.checkpoint()
-    await trie.put(utf8ToBytes('key2'), utf8ToBytes('value2'))
-    const trieCopy = trie.copy()
-    const value = await trieCopy.get(utf8ToBytes('key1'))
-    t.equal(bytesToUtf8(value!), 'value1')
+    const key = utf8ToBytes('TestKey')
+
+    t.equal(
+      bytesToUtf8((trieCopy as any).hash(key)),
+      bytesToUtf8((trie as any).hash(key)),
+      'hashes should be equal'
+    )
+    t.equal(
+      bytesToUtf8((trieCopy as any).hash(key)),
+      'HASHEDTestKey',
+      'hash should be custom hash function'
+    )
     t.end()
   })
 })
