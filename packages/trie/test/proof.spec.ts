@@ -7,7 +7,7 @@ tape('simple merkle proofs generation and verification', function (tester) {
   const it = tester.test
 
   it('create a merkle proof and verify it', async (t) => {
-    const trie = new Trie()
+    const trie = await Trie.create()
 
     await trie.put(utf8ToBytes('key1aa'), utf8ToBytes('0123456789012345678901234567890123456789xx'))
     await trie.put(utf8ToBytes('key2bb'), utf8ToBytes('aval2'))
@@ -79,7 +79,7 @@ tape('simple merkle proofs generation and verification', function (tester) {
   })
 
   it('create a merkle proof and verify it with a single long key', async (t) => {
-    const trie = new Trie()
+    const trie = await Trie.create()
 
     await trie.put(utf8ToBytes('key1aa'), utf8ToBytes('0123456789012345678901234567890123456789xx'))
 
@@ -91,7 +91,7 @@ tape('simple merkle proofs generation and verification', function (tester) {
   })
 
   it('create a merkle proof and verify it with a single short key', async (t) => {
-    const trie = new Trie()
+    const trie = await Trie.create()
 
     await trie.put(utf8ToBytes('key1aa'), utf8ToBytes('01234'))
 
@@ -103,7 +103,7 @@ tape('simple merkle proofs generation and verification', function (tester) {
   })
 
   it('create a merkle proof and verify it whit keys in the middle', async (t) => {
-    const trie = new Trie()
+    const trie = await Trie.create({})
 
     await trie.put(
       utf8ToBytes('key1aa'),
@@ -134,7 +134,7 @@ tape('simple merkle proofs generation and verification', function (tester) {
   })
 
   it('should succeed with a simple embedded extension-branch', async (t) => {
-    const trie = new Trie()
+    const trie = await Trie.create()
 
     await trie.put(utf8ToBytes('a'), utf8ToBytes('a'))
     await trie.put(utf8ToBytes('b'), utf8ToBytes('b'))
