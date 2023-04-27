@@ -24,7 +24,7 @@ tape('testing checkpoints', function (tester) {
   })
 
   it('should copy trie and get value added to original trie', async function (t) {
-    trieCopy = await trie.copy()
+    trieCopy = trie.copy()
     t.equal(
       bytesToHex(trieCopy.root()),
       preRoot,
@@ -61,7 +61,7 @@ tape('testing checkpoints', function (tester) {
   })
 
   it('should copy trie and get upstream and cache values after checkpoint', async function (t) {
-    trieCopy = await trie.copy()
+    trieCopy = trie.copy()
     t.equal(bytesToHex(trieCopy.root()), postRoot)
     // @ts-expect-error
     t.equal(trieCopy._db.checkpoints.length, 1)
@@ -83,7 +83,7 @@ tape('testing checkpoints', function (tester) {
     await trie.put(utf8ToBytes('key1'), utf8ToBytes('value1'))
     trie.checkpoint()
     await trie.put(utf8ToBytes('key2'), utf8ToBytes('value2'))
-    const trieCopy = await trie.copy()
+    const trieCopy = trie.copy()
     const value = await trieCopy.get(utf8ToBytes('key1'))
     t.equal(bytesToUtf8(value!), 'value1')
     t.end()
@@ -236,7 +236,7 @@ tape('testing checkpoints', function (tester) {
     CommittedState.checkpoint()
 
     // Copy CommittedState
-    const MemoryState = await CommittedState.copy()
+    const MemoryState = CommittedState.copy()
     MemoryState.checkpoint()
 
     // Test changes on MemoryState

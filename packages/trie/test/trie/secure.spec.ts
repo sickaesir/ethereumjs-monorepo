@@ -22,7 +22,7 @@ tape('SecureTrie', function (t) {
   })
 
   t.test('copy trie', async function (st) {
-    const t = await trie.copy()
+    const t = trie.copy()
     const res = await t.get(k)
     st.ok(equalsBytes(v, res!))
     st.end()
@@ -145,14 +145,14 @@ tape('secure tests should not crash', async function (t) {
   t.end()
 })
 
-tape('Secureawait trie.copy', function (it) {
+tape('Securetrie.copy', function (it) {
   it.test('created copy includes values added after checkpoint', async function (t) {
     const trie = new Trie({ useKeyHashing: true, db: new MapDB() })
 
     await trie.put(utf8ToBytes('key1'), utf8ToBytes('value1'))
     await trie.put(utf8ToBytes('key2'), utf8ToBytes('value2'))
     trie.checkpoint()
-    const trieCopy = await trie.copy()
+    const trieCopy = trie.copy()
     const value = await trieCopy.get(utf8ToBytes('key2'))
     t.ok(value, `trieCopy.get(key2): ${value ? bytesToUtf8(value) : 'null'}`)
     t.end()
@@ -165,7 +165,7 @@ tape('Secureawait trie.copy', function (it) {
     await trie.commit()
     trie.flushCheckpoints()
     await trie.put(utf8ToBytes('address2'), utf8ToBytes('value2'))
-    const trieCopy = await trie.copy()
+    const trieCopy = trie.copy()
     const value = await trieCopy.get(utf8ToBytes('address1'))
     t.deepEqual(value, utf8ToBytes('value1'), 'value 1 should be in trie copy')
     const lookup = await trieCopy.lookupNode([Uint8Array.from([32]), utf8ToBytes('value1')])
@@ -226,7 +226,7 @@ tape('Secureawait trie.copy', function (it) {
         return Uint8Array.from([...utf8ToBytes('HASHED'), ...value])
       },
     })
-    const trieCopy = await trie.copy()
+    const trieCopy = trie.copy()
 
     const key = utf8ToBytes('TestKey')
 

@@ -942,8 +942,8 @@ export class Trie {
    * Returns a copy of the underlying trie.
    * @param includeCheckpoints - If true and during a checkpoint, the copy will contain the checkpointing metadata and will use the same scratch as underlying db.
    */
-  async copy(includeCheckpoints = true): Promise<Trie> {
-    const trie = await Trie.create({
+  copy(includeCheckpoints = true): Trie {
+    const trie = new Trie({
       ...this._opts,
       db: this._db.db.copy(),
       root: this.root(),
