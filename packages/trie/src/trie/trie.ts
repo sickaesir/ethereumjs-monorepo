@@ -376,8 +376,9 @@ export class Trie {
     const nodeKey = this.root()
     const progress: Nibbles = []
     const remaining = bytesToNibbles(key)
+    let node: TrieNode | null = null
     try {
-      await this.processNode(nodeKey, stack, progress, remaining)
+      node = await this.processNode(nodeKey, stack, progress, remaining)
     } catch (error: any) {
       if (error.message === 'Missing node in DB' && !throwIfMissing) {
         // pass
@@ -385,7 +386,7 @@ export class Trie {
         throw error
       }
     }
-    return { node: null, stack, remaining }
+    return { node, stack, remaining }
   }
 
   /**
