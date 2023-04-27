@@ -314,50 +314,54 @@ export class Trie {
     })
   }
 
-  async processNode(nodeKey: Uint8Array, stack: TrieNode[], progress: Nibbles, remaining: Nibbles) {
+  async processNode(
+    nodeKey: Uint8Array | Uint8Array[],
+    stack: TrieNode[],
+    progress: Nibbles,
+    _remaining: Nibbles
+  ): Promise<TrieNode | null> {
     const node = await this.lookupNode(nodeKey)
 
     if (node === null) {
       throw new Error('Path not found')
     }
     stack.push(node)
-    const current = remaining[0]!
-    progress.push(current)
-    remaining = remaining.slice(1)
 
     if (node instanceof BranchNode) {
-      if (remaining.length === 0) {
-        // we exhausted the key without finding a node
-        return
+      const current = _remaining[0]!
+      progress.push(current)
+      const remaining = _remaining.slice(1)
+      const child = node._branches[current]
+      if (child) {
+        return this.processNode(child, stack, progress, remaining)
       } else {
-        const branchNode = node.getBranch(current)
-        if (!branchNode) {
-          // there are no more nodes to find and we didn't find the key
-          return
-        } else {
-          // node found, continuing search
-          // this can be optimized as this calls getBranch again.
-          //walkController.onlyBranchIndex(node, progress, branchIndex)
-          await this.processNode(branchNode as Uint8Array, stack, progress, remaining)
-        }
-      }
-    } else if (node instanceof LeafNode) {
-      if (doKeysMatch(remaining, node.key())) {
-        return
+        return null
       }
     } else if (node instanceof ExtensionNode) {
-      const matchingLen = matchingNibbleLength(remaining, node.key())
-      if (matchingLen !== node.key().length) {
-        return
-      } else {
-        // keys match, continue search
-        const children = [[node.key(), node.value()]]
-        for (const child of children) {
-          const childRef = child[1] as Uint8Array
-          //this.pushNodeToQueue(childRef, childKey, priority)
-          await this.processNode(childRef, stack, progress, remaining)
+      const matchingLen = matchingNibbleLength(_remaining, node._nibbles)
+      const current = _remaining.slice(0, matchingLen)
+      progress.push(...current)
+      const remaining = _remaining.slice(matchingLen)
+      if (doKeysMatch(_remaining, node.key())) {
+        const child = await this.lookupNode(node.raw()[1])
+        if (child) {
+          return child
         }
       }
+      if (matchingLen !== node.key().length) {
+        return null
+      } else {
+        const child = node.raw()[1]
+        return this.processNode(child, stack, progress, remaining)
+      }
+    } else if (node instanceof LeafNode) {
+      if (doKeysMatch(_remaining, node.key())) {
+        return node
+      } else {
+        return null
+      }
+    } else {
+      throw new Error(`Unknown node type ${node}`)
     }
   }
 
