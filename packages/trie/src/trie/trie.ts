@@ -144,12 +144,9 @@ export class Trie {
    * @returns A Promise that resolves to `Uint8Array` if a value was found or `null` if no value was found.
    */
   async get(key: Uint8Array, throwIfMissing = false): Promise<Uint8Array | null> {
-    const { remaining, stack } = await this.findPath2(this.appliedKey(key), throwIfMissing)
+    const { node } = await this.findPath2(this.appliedKey(key), throwIfMissing)
     let value: Uint8Array | null = null
-    if (remaining.length === 0) {
-      const last = stack.pop()!
-      value = last.value()
-    }
+    value = node?._value ?? null
     return value
   }
 
@@ -830,8 +827,8 @@ export class Trie {
     proof: Proof
   ): Promise<Uint8Array | null> {
     const proofTrie = new Trie({
+      ...this._opts,
       root: rootHash,
-      useKeyHashingFunction: this._opts.useKeyHashingFunction,
     })
     try {
       await proofTrie.fromProof(proof)
@@ -935,8 +932,8 @@ export class Trie {
    * Returns a copy of the underlying trie.
    * @param includeCheckpoints - If true and during a checkpoint, the copy will contain the checkpointing metadata and will use the same scratch as underlying db.
    */
-  copy(includeCheckpoints = true): Trie {
-    const trie = new Trie({
+  async copy(includeCheckpoints = true): Promise<Trie> {
+    const trie = await Trie.create({
       ...this._opts,
       db: this._db.db.copy(),
       root: this.root(),
