@@ -574,14 +574,14 @@ export class DefaultStateManager implements StateManager {
     if (!account) {
       // throw new Error(`getProof() can only be called for an existing account`)
       const returnValue: Proof = {
+        accountProof: (await this._trie.createProof(address.bytes)).map((p) =>
+          bytesToPrefixedHexString(p)
+        ),
         address: address.toString(),
         balance: '0x',
         codeHash: '0x' + KECCAK256_NULL_S,
         nonce: '0x',
         storageHash: '0x' + KECCAK256_RLP_S,
-        accountProof: (await this._trie.createProof(address.bytes)).map((p) =>
-          bytesToPrefixedHexString(p)
-        ),
         storageProof: [],
       }
       return returnValue
@@ -606,12 +606,12 @@ export class DefaultStateManager implements StateManager {
     }
 
     const returnValue: Proof = {
+      accountProof,
       address: address.toString(),
       balance: bigIntToHex(account.balance),
       codeHash: bytesToPrefixedHexString(account.codeHash),
       nonce: bigIntToHex(account.nonce),
       storageHash: bytesToPrefixedHexString(account.storageRoot),
-      accountProof,
       storageProof,
     }
     return returnValue
@@ -630,7 +630,8 @@ export class DefaultStateManager implements StateManager {
 
     // This returns the account if the proof is valid.
     // Verify that it matches the reported account.
-    const value = await new Trie({ useKeyHashing: true }).verifyProof(rootHash, key, accountProof)
+
+    const value = await this._trie.verifyProof(rootHash, key, accountProof)
 
     if (value === null) {
       // Verify that the account is empty in the proof.
@@ -676,17 +677,16 @@ export class DefaultStateManager implements StateManager {
       const storageProof = stProof.proof.map((value: PrefixedHexString) => hexStringToBytes(value))
       const storageValue = setLengthLeft(hexStringToBytes(stProof.value), 32)
       const storageKey = hexStringToBytes(stProof.key)
-      const proofValue = await new Trie({ useKeyHashing: true }).verifyProof(
-        storageRoot,
-        storageKey,
-        storageProof
-      )
-      const reportedValue = setLengthLeft(
-        RLP.decode(proofValue ?? new Uint8Array(0)) as Uint8Array,
-        32
-      )
-      if (!equalsBytes(reportedValue, storageValue)) {
-        throw new Error('Reported trie value does not match storage')
+      const trieValue = await this._trie.verifyProof(storageRoot, storageKey, storageProof)
+      if (trieValue) {
+        const reportedValue = setLengthLeft(trieValue.slice(1), 32)
+        if (!equalsBytes(reportedValue, storageValue)) {
+          throw new Error('Reported trie value does not match storage')
+        }
+      } else {
+        if (bytesToHex(storageValue) !== bytesToHex(setLengthLeft(Uint8Array.from([]), 32))) {
+          throw new Error('Reported trie proof could not be verified')
+        }
       }
     }
     return true

@@ -113,7 +113,10 @@ tape('ProofStateManager', (t) => {
       // Note: the first slot has a value, but the second slot is empty
       // Note: block hash 0x1d9ea6981b8093a2b63f22f74426ceb6ba1acae3fddd7831442bbeba3fa4f146
       const address = Address.fromString('0x2D80502854FC7304c3E3457084DE549f5016B73f')
-      const trie = new Trie({ useKeyHashing: true })
+      const trie = await Trie.create({ useKeyHashing: true })
+
+      await trie.fromProof(ropsten_contractWithStorage.accountProof.map((p) => hexStringToBytes(p)))
+
       const stateManager = new DefaultStateManager({ trie })
       // Dump all the account proof data in the DB
       let stateRoot: Uint8Array | undefined
@@ -123,11 +126,9 @@ tape('ProofStateManager', (t) => {
         if (stateRoot === undefined) {
           stateRoot = key
         }
-        // @ts-expect-error
-        await trie._db.put(key, bufferData)
       }
       const storageRoot = ropsten_contractWithStorage.storageHash
-      const storageTrie = new Trie({ useKeyHashing: true })
+      const storageTrie = new Trie({ useKeyHashing: true, root: hexStringToBytes(storageRoot) })
       const storageKeys: Uint8Array[] = []
       for (const storageProofsData of ropsten_contractWithStorage.storageProof) {
         storageKeys.push(hexStringToBytes(storageProofsData.key))
@@ -140,11 +141,17 @@ tape('ProofStateManager', (t) => {
       storageTrie.root(hexStringToBytes(storageRoot))
       const addressHex = bytesToHex(address.bytes)
       stateManager._storageTries[addressHex] = storageTrie
-      trie.root(stateRoot!)
 
       const proof = await stateManager.getProof(address, storageKeys)
+      const trieProof = await trie.createProof(hexStringToBytes(proof.address))
+      st.deepEqual(
+        trieProof,
+        proof.accountProof.map((p) => hexStringToBytes(p)),
+        'state account proof = Trie proof'
+      )
       st.deepEqual(ropsten_contractWithStorage, proof)
-      await stateManager.verifyProof(ropsten_contractWithStorage)
+      const valid = await stateManager.verifyProof(ropsten_contractWithStorage)
+      st.ok(valid, 'state manager verified proof')
       st.end()
     }
   )

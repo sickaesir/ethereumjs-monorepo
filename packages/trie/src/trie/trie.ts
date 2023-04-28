@@ -150,7 +150,10 @@ export class Trie {
     if (node instanceof ExtensionNode) {
       value = node.value()[16] as any as Uint8Array
     } else {
-      value = node?._value ?? null
+      value = node?.value() ?? null
+    }
+    if (value === null && throwIfMissing) {
+      throw new Error('Missing node in DB')
     }
     return value
   }
@@ -838,23 +841,14 @@ export class Trie {
     proof: Proof
   ): Promise<Uint8Array | null> {
     const proofTrie = await Trie.create({
-      root: rootHash,
+      useKeyHashing: this._opts.useKeyHashing,
     })
-    try {
-      await proofTrie.fromProof(proof)
-    } catch (e: any) {
-      throw new Error('Invalid proof nodes given')
+    await proofTrie.fromProof(proof)
+    if (bytesToHex(proofTrie.root()) !== bytesToHex(rootHash)) {
+      throw new Error(`Invalid proof provided`)
     }
-    try {
-      const value = await proofTrie.get(key, true)
-      return value
-    } catch (err: any) {
-      if (err.message === 'Missing node in DB') {
-        throw new Error('Invalid proof provided')
-      } else {
-        throw err
-      }
-    }
+    const value = await proofTrie.get(key)
+    return value
   }
 
   /**

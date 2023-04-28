@@ -30,12 +30,11 @@ tape('SecureTrie', function (t) {
 
   tape('SecureTrie proof', function (t) {
     t.test('create a merkle proof and verify it with a single short key', async function (st) {
-      const trie = await Trie.create()
+      const trie = await Trie.create({ useKeyHashing: true })
       await trie.put(utf8ToBytes('key1aa'), utf8ToBytes('01234'))
 
       const proof = await trie.createProof(utf8ToBytes('key1aa'))
       const val = await trie.verifyProof(trie.root(), utf8ToBytes('key1aa'), proof)
-      // console.log({ proof, val })
       st.equal(bytesToUtf8(val!), '01234')
       st.end()
     })
