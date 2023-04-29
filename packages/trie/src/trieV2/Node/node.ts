@@ -1,5 +1,7 @@
+import { RLP } from '@ethereumjs/rlp'
 import debug from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak'
+import { equalsBytes } from 'ethereum-cryptography/utils'
 
 import type { Debugger } from 'debug'
 
@@ -28,7 +30,6 @@ export abstract class Node<T extends NodeType = NodeType> {
   abstract decode(encodedNode: Uint8Array): Node
   abstract hash(): Uint8Array
   abstract get(rawKey: Uint8Array): Promise<Uint8Array | null>
-  abstract update(rawKey: Uint8Array, rawValue: Uint8Array): Node
 }
 
 export class LeafNode extends Node {
@@ -43,19 +44,31 @@ export class LeafNode extends Node {
   }
 
   encode(): Uint8Array {
-    return new Uint8Array()
+    this.debug.log(`LeafNode encode: key=${this.key}, value=${this.value}`)
+    const encodedNode = RLP.encode([this.key, this.value])
+    this.debug.log(`LeafNode encoded: ${encodedNode}`)
+    return encodedNode
   }
-  decode(_encodedNode: Uint8Array): Node {
-    return new LeafNode(new Uint8Array(), new Uint8Array())
+
+  decode(encodedNode: Uint8Array): Node {
+    this.debug.log(`LeafNode decode: encodedNode=${encodedNode}`)
+    const [key, value] = RLP.decode(encodedNode) as [Uint8Array, Uint8Array]
+    this.debug.log(`LeafNode decoded: key=${key}, value=${value}`)
+    return new LeafNode(key, value)
   }
+
   hash(): Uint8Array {
-    return this.hashFunction(new Uint8Array())
+    const encodedNode = this.encode()
+    const hashed = keccak256(encodedNode)
+    this.debug.log(`LeafNode hash: ${hashed}`)
+    return hashed
   }
-  async get(_rawKey: Uint8Array): Promise<Uint8Array | null> {
-    return new Uint8Array()
-  }
-  update(_rawKey: Uint8Array, _rawValue: Uint8Array): Node {
-    return new LeafNode(new Uint8Array(), new Uint8Array())
+
+  async get(rawKey: Uint8Array): Promise<Uint8Array | null> {
+    this.debug.log(`LeafNode get: rawKey=${rawKey}`)
+    const result = equalsBytes(rawKey, this.key) ? this.value : null
+    this.debug.log(`LeafNode get result: ${result ? result : 'null'}`)
+    return result
   }
 }
 
@@ -75,19 +88,55 @@ export class BranchNode extends Node {
   }
 
   encode(): Uint8Array {
-    return new Uint8Array()
+    this.debug.log(
+      `BranchNode encode: children=[${this.children
+        .map((child, i) => (child ? `${i}: ${child.hash()}` : ''))
+        .join(', ')}], value=${this.value ? this.value : 'null'}`
+    )
+    const encodedNode = RLP.encode([
+      ...this.children.map((child) => (child ? child.encode() : Uint8Array.from([]))),
+      this.value ?? Uint8Array.from([]),
+    ])
+    this.debug.log(`BranchNode encoded: ${encodedNode}`)
+    return encodedNode
   }
-  decode(_encodedNode: Uint8Array): Node {
-    return new BranchNode([], new Uint8Array())
+
+  decode(encodedNode: Uint8Array): Node {
+    this.debug.log(`BranchNode decode: encodedNode=${encodedNode}`)
+    const decodedChildren = RLP.decode(encodedNode).slice(0, 16) as Uint8Array[]
+    const children = decodedChildren.map((child) =>
+      child.length > 0 ? LeafNode.prototype.decode(child) : null
+    )
+    const value = decodedChildren[16].length > 0 ? decodedChildren[16] : null
+    this.debug.log(
+      `BranchNode decoded: children=[${children
+        .map((child, i) => (child ? `${i}: ${child.hash()}` : ''))
+        .join(', ')}], value=${value ? value : 'null'}`
+    )
+    return new BranchNode(children, value)
   }
+
   hash(): Uint8Array {
-    return this.hashFunction(new Uint8Array())
+    const encodedNode = this.encode()
+    const hashed = keccak256(encodedNode)
+    this.debug.log(`BranchNode hash: ${hashed}`)
+    return hashed
   }
-  async get(_rawKey: Uint8Array): Promise<Uint8Array | null> {
-    return new Uint8Array()
-  }
-  update(_rawKey: Uint8Array, _rawValue: Uint8Array): Node {
-    return new BranchNode([], new Uint8Array())
+  async get(rawKey: Uint8Array): Promise<Uint8Array | null> {
+    this.debug.log(`BranchNode get: rawKey=${rawKey}`)
+    if (rawKey.length === 0) {
+      this.debug.log(`BranchNode get result: ${this.value ? this.value : 'null'}`)
+      return this.value
+    }
+    const index = rawKey[0]
+    const child = this.children[index]
+    if (child) {
+      const result = await child.get(rawKey.slice(1))
+      this.debug.log(`BranchNode get result: ${result ? result : 'null'}`)
+      return result
+    }
+    this.debug.log(`BranchNode get result: null`)
+    return null
   }
 }
 
@@ -103,18 +152,35 @@ export class ExtensionNode extends Node {
   }
 
   encode(): Uint8Array {
-    return new Uint8Array()
+    this.debug.log(`ExtensionNode encode: key=${this.key}, child=${this.child.hash()}`)
+    const encodedNode = RLP.encode([this.key, this.child.encode()])
+    this.debug.log(`ExtensionNode encoded: ${encodedNode}`)
+    return encodedNode
   }
-  decode(_encodedNode: Uint8Array): Node {
-    return new ExtensionNode(new Uint8Array(), new LeafNode(new Uint8Array(), new Uint8Array()))
+
+  decode(encodedNode: Uint8Array): Node {
+    this.debug.log(`ExtensionNode decode: encodedNode=${encodedNode}`)
+    const [key, childEncoded] = RLP.decode(encodedNode) as [Uint8Array, Uint8Array]
+    const child = LeafNode.prototype.decode(childEncoded)
+    this.debug.log(`ExtensionNode decoded: key=${key}, child=${child.hash()}`)
+    return new ExtensionNode(key, child)
   }
+
   hash(): Uint8Array {
-    return this.hashFunction(new Uint8Array())
+    const encodedNode = this.encode()
+    const hashed = keccak256(encodedNode)
+    this.debug.log(`ExtensionNode hash: ${hashed}`)
+    return hashed
   }
-  async get(_rawKey: Uint8Array): Promise<Uint8Array | null> {
-    return new Uint8Array()
-  }
-  update(_rawKey: Uint8Array, _rawValue: Uint8Array): Node {
-    return new ExtensionNode(new Uint8Array(), new LeafNode(new Uint8Array(), new Uint8Array()))
+
+  async get(rawKey: Uint8Array): Promise<Uint8Array | null> {
+    this.debug.log(`ExtensionNode get: rawKey=${rawKey}`)
+    if (equalsBytes(rawKey.slice(0, this.key.length), this.key)) {
+      const result = await this.child.get(rawKey.slice(this.key.length))
+      this.debug.log(`ExtensionNode get result: ${result ? result : 'null'}`)
+      return result
+    }
+    this.debug.log(`ExtensionNode get result: null`)
+    return null
   }
 }
