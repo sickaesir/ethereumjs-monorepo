@@ -1,5 +1,6 @@
 import debug from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak'
+
 import type { Debugger } from 'debug'
 
 const nodeTypes = {

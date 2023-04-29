@@ -55,11 +55,13 @@
     "0x": "^4.9.1",
     "@types/benchmark": "^1.0.33",
     "abstract-level": "^1.0.3",
+    "debug": "^4.3.4",
     "level": "^8.0.0",
     "level-legacy": "npm:level@^7.0.0",
     "level-mem": "^6.0.1",
     "levelup": "^5.1.1",
     "lmdb": "^2.5.3",
+    "lru-cache": "9.1.1",
     "memory-level": "^1.0.0",
     "micro-bmark": "0.2.0"
   },
