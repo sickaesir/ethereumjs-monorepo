@@ -1,1 +1,5 @@
-export * from './node'
+export * from './baseNode'
+export * from './branchNode'
+export * from './extensionNode'
+export * from './leafNode'
+export * from './trieNode'

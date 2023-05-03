@@ -1,1 +1,1 @@
-export * from './triev2.js'
+export * from './trie'
