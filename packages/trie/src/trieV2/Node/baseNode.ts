@@ -23,6 +23,7 @@ export abstract class BaseNode {
   abstract update(rawKey: Uint8Array, value: Uint8Array): Promise<TNode>
   abstract getChildren(): Promise<Map<number, TNode>>
   abstract getPartialKey(): Nibble[]
+  abstract delete(rawKey?: Uint8Array): Promise<TNode>
 }
 
 export class NullNode extends BaseNode {
@@ -48,5 +49,8 @@ export class NullNode extends BaseNode {
   async update(key: Uint8Array, value: Uint8Array): Promise<TNode> {
     const newNode = await TrieNode.create({ key: decodeNibbles(key), value })
     return newNode
+  }
+  async delete() {
+    return this
   }
 }

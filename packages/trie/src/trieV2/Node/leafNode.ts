@@ -2,9 +2,9 @@ import { RLP } from '@ethereumjs/rlp'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import { equalsBytes } from 'ethereum-cryptography/utils'
 
-import { decodeNibbles, encodeNibbles, nibblesCompare } from '../util'
+import { decodeNibbles, encodeNibbles, nibblesEqual } from '../util'
 
-import { BaseNode } from './index'
+import { BaseNode, NullNode } from './index'
 
 import type { Nibble, NodeInterface, TNode, TNodeOptions } from '../types'
 
@@ -38,7 +38,6 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
 
   async get(rawKey: Uint8Array): Promise<Uint8Array | null> {
     this.debug(`LeafNode get: rawKey=${rawKey}`)
-    this.debug(`this.rawKey=${this.key}`)
     const result = equalsBytes(this.key, rawKey) ? this.value : null
     this.debug(`LeafNode get result: ${result ? result : 'null'}`)
     return result
@@ -51,10 +50,17 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
     return this.keyNibbles
   }
   async update(rawKey: Uint8Array, value: Uint8Array): Promise<LeafNode> {
+    return new LeafNode({ key: decodeNibbles(rawKey), value })
+  }
+  updateKey(newKeyNibbles: Nibble[]): LeafNode {
+    return new LeafNode({ key: newKeyNibbles, value: this.value })
+  }
+
+  async delete(rawKey: Uint8Array): Promise<TNode> {
     const key = decodeNibbles(rawKey)
-    if (nibblesCompare(this.keyNibbles, key) === 0) {
-      return new LeafNode({ key: this.keyNibbles, value })
+    if (nibblesEqual(this.getPartialKey(), key)) {
+      return new NullNode()
     }
-    throw new Error('Key does not match the current LeafNode key')
+    return this
   }
 }

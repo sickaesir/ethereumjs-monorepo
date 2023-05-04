@@ -142,3 +142,40 @@ export function decodeNibbles(encoded: Uint8Array): Nibble[] {
 
   return decoded
 }
+export function hasMatchingNibbles(a: number[], b: number[]): boolean {
+  const minLength = Math.min(a.length, b.length)
+
+  for (let i = 0; i < minLength; i++) {
+    if (a[i] !== b[i]) {
+      return false
+    }
+  }
+
+  return true
+}
+export function nibblesEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) {
+    return false
+  }
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false
+    }
+  }
+  return true
+}
+
+export function addPadding(nibbles: Nibble[]): Nibble[] {
+  if (nibbles.length % 2 === 0) {
+    return [NIBBLE_PADDING, ...nibbles]
+  } else {
+    return nibbles
+  }
+}
+export function unPad(nibbles: Nibble[]): Nibble[] {
+  if (nibbles[0] === NIBBLE_PADDING) {
+    return nibbles.slice(1)
+  } else {
+    return nibbles
+  }
+}

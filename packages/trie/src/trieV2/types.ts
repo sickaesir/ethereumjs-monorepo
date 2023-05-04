@@ -1,4 +1,4 @@
-import type { BranchNode, ExtensionNode, LeafNode } from './Node'
+import type { BranchNode, ExtensionNode, LeafNode, NullNode } from './Node'
 import type { AbstractLevel } from 'abstract-level'
 import type { Debugger } from 'debug'
 import type { LRUCache } from 'lru-cache'
@@ -48,6 +48,7 @@ export interface NodeInterface<T extends NodeType> {
   get(rawKey: Uint8Array): Promise<Uint8Array | null>
   getChildren(): Promise<Map<number, TNode>>
   update(rawKey: Uint8Array, value: Uint8Array): Promise<TNode>
+  delete(rawKey?: Uint8Array): Promise<TNode>
 }
 
 export interface Ileaf extends NodeInterface<'LeafNode'> {
@@ -59,11 +60,11 @@ export interface Ibranch extends NodeInterface<'BranchNode'> {
   value: Uint8Array | null
 }
 export interface Iextension extends NodeInterface<'ExtensionNode'> {
-  key: Uint8Array
+  keyNibbles: Nibble[]
   child: TNode
 }
 
-export type TNode = Ileaf | Ibranch | Iextension
+export type TNode = Ileaf | Ibranch | Iextension | NullNode
 
 export type TCreated<T> = T extends NodeInterface<infer R> ? NodeInterface<R> : never
 

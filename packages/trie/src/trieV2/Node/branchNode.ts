@@ -121,4 +121,25 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
       }
     }
   }
+  async delete(rawKey: Uint8Array): Promise<TNode> {
+    const key = decodeNibbles(rawKey)
+    const index = key[0]
+
+    if (key.length === 1) {
+      // The key matches the branch node exactly, delete the value
+      return new BranchNode({ children: this.children, value: null })
+    } else {
+      // The key does not match the branch node exactly, delete from the subtree
+      const child = this.children[index]
+      if (child) {
+        const updatedChild = await child.delete(rawKey.slice(1))
+        const updatedChildren = this.children.slice()
+        updatedChildren[index] = updatedChild
+        return new BranchNode({ children: updatedChildren, value: this.value })
+      }
+    }
+
+    // If the child does not exist, return the branch node unchanged
+    return this
+  }
 }
