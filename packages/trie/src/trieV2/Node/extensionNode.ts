@@ -77,9 +77,9 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
   }
 
   async update(rawKey: Uint8Array, value: Uint8Array): Promise<TNode> {
+    this.debug && this.debug(`ExtensionNode update: rawKey=${rawKey}...value=${value}`)
     const keyNibbles = decodeNibbles(rawKey)
     const commonPrefixLength = matchingNibbleLength(this.keyNibbles, keyNibbles)
-
     if (commonPrefixLength === this.keyNibbles.length) {
       this.debug &&
         this.debug('The key shares the same prefix as the existing key, update the child')
@@ -90,7 +90,7 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
       return new ExtensionNode({ keyNibbles: this.keyNibbles, subNode: updatedChild })
     } else {
       this.debug && this.debug('The key has a different prefix, create a new branch node')
-      const newLeaf = new LeafNode({ key: keyNibbles.slice(commonPrefixLength + 1), value })
+      const newLeaf = new LeafNode({ key: keyNibbles.slice(commonPrefixLength), value })
 
       let updatedChild
       if (this.child instanceof LeafNode) {
@@ -121,6 +121,8 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
 
   async delete(rawKey: Uint8Array): Promise<ExtensionNode | NullNode> {
     const key = decodeNibbles(rawKey)
+    this.debug && this.debug(`ExtensionNode delete: rawKey:${rawKey}...decoded: ${key}`)
+    this.debug && this.debug(`ExtensionNode: ${this.keyNibbles}`)
 
     if (!hasMatchingNibbles(this.keyNibbles, key)) {
       // The key does not match the extension node, return the original node

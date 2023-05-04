@@ -112,7 +112,7 @@ export function concatNibbles(a: number[], b: number[]): Nibble[] {
   return [...a, ...b]
 }
 
-export const NIBBLE_PADDING = 0x10
+export const NIBBLE_PADDING = 0x00
 export function encodeNibbles(nibbles: Nibble[]): Uint8Array {
   const length = nibbles.length
   const isOddLength = length % 2 === 1

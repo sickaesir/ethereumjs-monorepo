@@ -180,7 +180,7 @@ tape('BranchNode', async (t: tape.Test) => {
     const branches = new Array(16).fill(null)
     const value = hexStringToBytes('1234')
     const branchNode = await TrieNode.create({ children: branches, value })
-    const key = hexStringToBytes('0a') // Use a complete byte for the key
+    const key = hexStringToBytes('1a') // Use a complete byte for the key
     const newValue = hexStringToBytes('5678')
     const updatedBranchNode = await branchNode.update(key, newValue)
 
@@ -188,6 +188,33 @@ tape('BranchNode', async (t: tape.Test) => {
       await updatedBranchNode.get(key),
       newValue,
       'update should set the new value for the given key'
+    )
+    st.end()
+  })
+
+  t.test('delete', async (st) => {
+    const branches = new Array(16).fill(null)
+    const value = hexStringToBytes('1234')
+    const branchNode = await TrieNode.create({ children: branches, value })
+    const key = hexStringToBytes('0a')
+    const newValue = hexStringToBytes('5678')
+    await branchNode.update(key, newValue)
+    console.log({
+      keyToDel: key,
+      children: branchNode.children.map((c) => {
+        return {
+          type: c?.type,
+          nibbles: c?.getPartialKey().toString(),
+        }
+      }),
+    })
+
+    const deletedBranchNode = await branchNode.delete(key)
+
+    st.deepEqual(
+      await deletedBranchNode.get(key),
+      null,
+      'delete should remove the value for the given key'
     )
     st.end()
   })

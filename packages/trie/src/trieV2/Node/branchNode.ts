@@ -67,11 +67,12 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
       this.debug && this.debug(`BranchNode get result: ${this.value ? this.value : 'null'}`)
       return this.value
     }
-    const index = rawKey[0]
+    const index = key[0]
     this.debug && this.debug(`BranchNode get: index=${index}`)
     const child = this.children[index]
     if (child) {
-      this.debug && this.debug(`Child found at index=${index}...getting ChildNode`)
+      this.debug &&
+        this.debug(`Child found at index=${index}...childNode.get(${encodeNibbles(key)})`)
       const result = await child.get(encodeNibbles(key.slice(1)))
       this.debug && this.debug(`BranchNode get result: ${result ? result : 'null'}`)
       return result
@@ -101,9 +102,9 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
   async update(rawKey: Uint8Array, value: Uint8Array): Promise<BranchNode> {
     this.debug && this.debug(`BranchNode update: rawKey=${rawKey}, value=${value}`)
     const key = decodeNibbles(rawKey)
-    const index = rawKey[0]
+    const index = key[0]
     this.debug && this.debug(`BranchNode update: nibbles=${key.toString()} index=${index}`)
-    if (key.length === 1) {
+    if (key.length === 0) {
       this.debug && this.debug(`The key matches the branch node exactly, update the value`)
       return new BranchNode({ children: this.children, value })
     } else {
@@ -124,9 +125,10 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
     }
   }
   async delete(rawKey: Uint8Array): Promise<TNode> {
+    this.debug && this.debug(`BranchNode delete: rawKey=${rawKey}`)
     const key = decodeNibbles(rawKey)
     const index = key[0]
-
+    this.debug && this.debug(`BranchNode delete: nibbles=${key.toString()} index=${index}`)
     if (key.length === 1) {
       // The key matches the branch node exactly, delete the value
       return new BranchNode({ children: this.children, value: null })
