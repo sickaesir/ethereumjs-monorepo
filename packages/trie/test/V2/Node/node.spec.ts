@@ -3,10 +3,12 @@ import { hexStringToBytes } from '@ethereumjs/util'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import * as tape from 'tape'
 
-import { BranchNode, LeafNode, TrieNode } from '../../../src/trieV2/Node'
+import { encodeNibbles } from '../../../src/trieV2'
+import { BranchNode, ExtensionNode, LeafNode, NullNode, TrieNode } from '../../../src/trieV2/Node'
 
 tape('LeafNode', async (t: tape.Test) => {
-  const key = new Uint8Array([1, 2, 3, 4])
+  const key = [1, 2, 3, 4]
+  const encodedKey = encodeNibbles(key)
   const value = new Uint8Array([5, 6, 7, 8])
   const node = await TrieNode.create({ key, value })
   const leafNode = new LeafNode({ key, value })
@@ -24,27 +26,30 @@ tape('LeafNode', async (t: tape.Test) => {
     )
     st.ok('key' in node, 'Leaf Node has Key')
     st.ok('value' in node, 'Leaf Node has Value')
-    st.deepEqual(node.key, key)
-    st.deepEqual(leafNode.key, key)
+    st.deepEqual(node.key, encodedKey)
+    st.deepEqual(node.keyNibbles, key)
+    st.deepEqual(leafNode.key, encodedKey)
+    st.deepEqual(leafNode.keyNibbles, key)
     st.deepEqual(node.value, value)
     st.deepEqual(leafNode.value, value)
-    st.deepEqual(node.keyNibbles, [0, 1, 0, 2, 0, 3, 0, 4])
-    st.deepEqual(leafNode.keyNibbles, [0, 1, 0, 2, 0, 3, 0, 4])
+    st.deepEqual(node.keyNibbles, [1, 2, 3, 4])
+    st.deepEqual(leafNode.keyNibbles, [1, 2, 3, 4])
     st.deepEqual(await node.getChildren(), new Map())
     st.deepEqual(await leafNode.getChildren(), new Map())
     st.end()
   })
   t.test('get', async (st: tape.Test) => {
-    const result = await node.get(key)
+    const result = await node.get(encodeNibbles(key))
     st.deepEqual(result, value)
     const nullResult = await node.get(new Uint8Array([1, 2, 3, 5]))
     st.equal(nullResult, null)
     st.deepEqual(node.getPartialKey(), node.keyNibbles)
+    st.deepEqual([...(await node.getChildren()).entries()], [], 'Leaf Node should have no children')
     st.end()
   })
   t.test('encode/decode/hash', async (st: tape.Test) => {
-    const encoded = node.encode()
-    st.deepEqual(encoded, RLP.encode([key, value]))
+    const encoded = node.rlpEncode()
+    st.deepEqual(encoded, RLP.encode([encodedKey, value]))
     const decoded = await TrieNode.decode(encoded)
     const hash = node.hash()
     st.equal(decoded.type, 'LeafNode')
@@ -52,10 +57,9 @@ tape('LeafNode', async (t: tape.Test) => {
     st.deepEqual(hash, keccak256(encoded))
     st.end()
   })
-
   t.test('update', async (st) => {
     const newValue = hexStringToBytes('0x5678')
-    const updatedLeafNode = await leafNode.update(key, newValue)
+    const updatedLeafNode = await leafNode.update(encodeNibbles(key), newValue)
     st.deepEqual(
       updatedLeafNode.value,
       newValue,
@@ -67,12 +71,50 @@ tape('LeafNode', async (t: tape.Test) => {
   t.end()
 })
 tape('BranchNode', async (t: tape.Test) => {
+  t.test('fromTwoNodes', async (st) => {
+    const leaf1 = new LeafNode({ key: [1, 2, 3, 4], value: Uint8Array.from([1, 2]) })
+    const leaf2 = new LeafNode({ key: [5, 6, 7, 8], value: Uint8Array.from([3, 4]) })
+
+    const branchNode = await BranchNode.fromTwoNodes(
+      encodeNibbles([1, 2, 3, 4]),
+      leaf1,
+      encodeNibbles([5, 6, 7, 8]),
+      leaf2
+    )
+    st.ok(branchNode instanceof BranchNode, 'Creates a BranchNode')
+    st.deepEqual(branchNode.children[1], leaf1, 'The first leaf is stored correctly')
+    st.deepEqual(branchNode.children[5], leaf2, 'The second leaf is stored correctly')
+
+    const ext1 = new ExtensionNode({ keyNibbles: [1, 2], subNode: leaf1 })
+    const ext2 = new ExtensionNode({ keyNibbles: [5, 6], subNode: leaf2 })
+
+    const branchNode2 = await BranchNode.fromTwoNodes([1, 2], ext1, [5, 6], ext2)
+    st.ok(branchNode2 instanceof BranchNode, 'Creates a BranchNode with ExtensionNodes')
+    st.deepEqual(branchNode2.children[1], ext1, 'The first extension is stored correctly')
+    st.deepEqual(branchNode2.children[5], ext2, 'The second extension is stored correctly')
+
+    const branchNode3 = await BranchNode.fromTwoNodes(
+      encodeNibbles([1, 2, 3, 4]),
+      leaf1,
+      [5, 6],
+      ext2
+    )
+    st.ok(branchNode3 instanceof BranchNode, 'Creates a BranchNode with LeafNode and ExtensionNode')
+    st.deepEqual(branchNode3.children[1], leaf1, 'The leaf is stored correctly')
+    st.deepEqual(branchNode3.children[5], ext2, 'The extension is stored correctly')
+
+    const nullNode = new NullNode()
+
+    // @ts-expect-error
+    const _errorCase = () => BranchNode.fromTwoNodes(nullNode, leaf1)
+    st.end()
+  })
   const children = await Promise.all(
     Array.from({ length: 16 }, (_v, k) => {
       return k % 2 === 0
         ? null
         : TrieNode.create({
-            key: Uint8Array.from([0, k]),
+            key: [k],
             value: Uint8Array.from([1, 2, 3, k]),
           })
     })
@@ -88,12 +130,16 @@ tape('BranchNode', async (t: tape.Test) => {
 
   t.test('create/constructor', async (st) => {
     st.equal(branch.type, 'BranchNode', 'Trie.create produced a BranchNode')
-    st.deepEqual(branch.encode(), branch2.encode(), 'create produces same node as constructor')
+    st.deepEqual(
+      branch.rlpEncode(),
+      branch2.rlpEncode(),
+      'create produces same node as constructor'
+    )
     st.deepEqual(branch.children, children, 'TrieNode created BranchNode with children')
     st.deepEqual(branch2.children, children, 'BranchNode created by constructor with children')
     st.equal(branch.children.length, 16, 'children attribute has null nodes')
     st.deepEqual(branch.getPartialKey(), [], 'BranchNode should have no partial key')
-    st.deepEqual(branch.hash(), keccak256(branch.encode()), 'branch.hash()')
+    st.deepEqual(branch.hash(), keccak256(branch.rlpEncode()), 'branch.hash()')
     st.end()
   })
 
@@ -104,6 +150,7 @@ tape('BranchNode', async (t: tape.Test) => {
       branch.value,
       'branch.get() returned branch.value'
     )
+
     st.deepEqual(
       await branch.get(Uint8Array.from([])),
       Uint8Array.from([0, 1, 2, 3]),
@@ -111,19 +158,19 @@ tape('BranchNode', async (t: tape.Test) => {
     )
     let bIdx = 1
     st.deepEqual(
-      await branch.get(Uint8Array.from([bIdx, 0, bIdx])),
+      await branch.get(Uint8Array.from([bIdx])),
       children[bIdx]?.value ?? null,
       'branch.get found a child'
     )
     bIdx = 2
     st.deepEqual(
-      await branch.get(Uint8Array.from([bIdx, 0, bIdx])),
+      await branch.get(Uint8Array.from([bIdx])),
       children[bIdx]?.value ?? null,
       'branch.get found a child'
     )
     bIdx = 3
     st.deepEqual(
-      await branch.get(Uint8Array.from([bIdx, 0, bIdx])),
+      await branch.get(Uint8Array.from([bIdx])),
       children[bIdx]?.value ?? null,
       'branch.get found a child'
     )
@@ -133,7 +180,7 @@ tape('BranchNode', async (t: tape.Test) => {
     const branches = new Array(16).fill(null)
     const value = hexStringToBytes('1234')
     const branchNode = await TrieNode.create({ children: branches, value })
-    const key = hexStringToBytes('a')
+    const key = hexStringToBytes('0a') // Use a complete byte for the key
     const newValue = hexStringToBytes('5678')
     const updatedBranchNode = await branchNode.update(key, newValue)
 
@@ -142,6 +189,7 @@ tape('BranchNode', async (t: tape.Test) => {
       newValue,
       'update should set the new value for the given key'
     )
+    st.end()
   })
 
   t.end()

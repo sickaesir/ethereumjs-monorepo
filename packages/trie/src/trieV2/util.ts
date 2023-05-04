@@ -111,3 +111,34 @@ export function firstNibble(key: Uint8Array): number {
 export function concatNibbles(a: number[], b: number[]): Nibble[] {
   return [...a, ...b]
 }
+
+export const NIBBLE_PADDING = 0x10
+export function encodeNibbles(nibbles: Nibble[]): Uint8Array {
+  const length = nibbles.length
+  const isOddLength = length % 2 === 1
+  const encoded: number[] = []
+
+  if (isOddLength) {
+    nibbles.unshift(NIBBLE_PADDING)
+  }
+
+  for (let i = 0; i < nibbles.length; i += 2) {
+    encoded.push((nibbles[i] << 4) | nibbles[i + 1])
+  }
+
+  return new Uint8Array(encoded)
+}
+
+export function decodeNibbles(encoded: Uint8Array): Nibble[] {
+  const decoded: Nibble[] = []
+
+  for (const byte of encoded) {
+    decoded.push(byte >> 4, byte & 0x0f)
+  }
+
+  if (decoded[0] === NIBBLE_PADDING) {
+    decoded.shift()
+  }
+
+  return decoded
+}

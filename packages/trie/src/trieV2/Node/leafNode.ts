@@ -2,7 +2,7 @@ import { RLP } from '@ethereumjs/rlp'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import { equalsBytes } from 'ethereum-cryptography/utils'
 
-import { bytesToNibbles } from '../util'
+import { decodeNibbles, encodeNibbles, nibblesCompare } from '../util'
 
 import { BaseNode } from './index'
 
@@ -16,13 +16,13 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
 
   constructor(options: TNodeOptions<'LeafNode'>) {
     super(options)
-    this.key = options.key
-    this.keyNibbles = bytesToNibbles(options.key)
+    this.key = encodeNibbles(options.key)
+    this.keyNibbles = options.key
     this.value = options.value
     this.debug(`LeafNode created: key=${options.key}, value=${options.value}`)
   }
 
-  encode(): Uint8Array {
+  rlpEncode(): Uint8Array {
     this.debug(`LeafNode encode: key=${this.key}, value=${this.value}`)
     const encodedNode = RLP.encode([this.key, this.value])
     this.debug(`LeafNode encoded: ${encodedNode}`)
@@ -30,7 +30,7 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
   }
 
   hash(): Uint8Array {
-    const encodedNode = this.encode()
+    const encodedNode = this.rlpEncode()
     const hashed = keccak256(encodedNode)
     this.debug(`LeafNode hash: ${hashed}`)
     return hashed
@@ -38,7 +38,8 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
 
   async get(rawKey: Uint8Array): Promise<Uint8Array | null> {
     this.debug(`LeafNode get: rawKey=${rawKey}`)
-    const result = equalsBytes(rawKey, this.key) ? this.value : null
+    this.debug(`this.rawKey=${this.key}`)
+    const result = equalsBytes(this.key, rawKey) ? this.value : null
     this.debug(`LeafNode get result: ${result ? result : 'null'}`)
     return result
   }
@@ -50,8 +51,9 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
     return this.keyNibbles
   }
   async update(rawKey: Uint8Array, value: Uint8Array): Promise<LeafNode> {
-    if (equalsBytes(this.key, rawKey)) {
-      return new LeafNode({ key: this.key, value })
+    const key = decodeNibbles(rawKey)
+    if (nibblesCompare(this.keyNibbles, key) === 0) {
+      return new LeafNode({ key: this.keyNibbles, value })
     }
     throw new Error('Key does not match the current LeafNode key')
   }

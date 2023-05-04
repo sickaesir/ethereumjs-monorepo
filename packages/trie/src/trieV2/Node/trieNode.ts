@@ -1,18 +1,10 @@
 import { RLP } from '@ethereumjs/rlp'
 
-import { bytesToNibbles } from '..'
+import { bytesToNibbles, decodeNibbles } from '..'
 
 import { BranchNode, ExtensionNode, LeafNode } from './index'
 
-import type { NodeType, TNode, TNodeOptions, TOpts } from '..'
-
-type NodeFromOptions<T extends TNodeOptions<NodeType>> = T extends TNodeOptions<'LeafNode'>
-  ? LeafNode
-  : T extends TNodeOptions<'BranchNode'>
-  ? BranchNode
-  : T extends TNodeOptions<'ExtensionNode'>
-  ? ExtensionNode
-  : never
+import type { NodeFromOptions, NodeType, TNode, TOpts } from '..'
 
 export class TrieNode {
   static async create<T extends TOpts>(options: T): Promise<NodeFromOptions<T>> {
@@ -35,7 +27,7 @@ export class TrieNode {
       switch (type) {
         case 'LeafNode': {
           const [key, value] = raw
-          return TrieNode.create({ key: key as Uint8Array, value })
+          return TrieNode.create({ key: decodeNibbles(key), value })
         }
         case 'BranchNode': {
           const children: (TNode | null)[] = []

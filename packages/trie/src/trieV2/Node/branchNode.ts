@@ -1,9 +1,9 @@
 import { RLP } from '@ethereumjs/rlp'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 
-import { firstNibble } from '..'
+import { decodeNibbles, encodeNibbles, firstNibble } from '..'
 
-import { BaseNode, LeafNode } from './index'
+import { BaseNode, TrieNode } from './index'
 
 import type { Nibble, NodeInterface, TNode, TNodeOptions } from '../types'
 
@@ -15,13 +15,15 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
 
   static async fromTwoNodes(
     key1: Uint8Array | Nibble[],
-    node1: TNode,
+    node1: Exclude<TNode, 'BranchNode'>,
     key2: Uint8Array | Nibble[],
-    node2: TNode
+    node2: Exclude<TNode, 'BranchNode'>
   ): Promise<BranchNode> {
     const branch = new BranchNode({ children: [], value: null })
-    branch.setChild(key1[0], node1)
-    branch.setChild(key2[0], node2)
+    const nibble1 = key1 instanceof Uint8Array ? firstNibble(key1) : key1[0]
+    const nibble2 = key2 instanceof Uint8Array ? firstNibble(key2) : key2[0]
+    branch.setChild(nibble1, node1)
+    branch.setChild(nibble2, node2)
     return branch
   }
   constructor(options: TNodeOptions<'BranchNode'>) {
@@ -36,14 +38,14 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
     )
   }
 
-  encode(): Uint8Array {
+  rlpEncode(): Uint8Array {
     this.debug(
-      `BranchNode encode: children=[${this.children
+      `BranchNode rlpEncode: children=[${this.children
         .map((child, i) => (child ? `${i}: ${child.hash()}` : ''))
         .join(', ')}], value=${this.value ? this.value : 'null'}`
     )
     const encodedNode = RLP.encode([
-      ...this.children.map((child) => (child ? child.encode() : Uint8Array.from([]))),
+      ...this.children.map((child) => (child ? child.rlpEncode() : Uint8Array.from([]))),
       this.value ?? Uint8Array.from([]),
     ])
     this.debug(`BranchNode encoded: ${encodedNode}`)
@@ -51,21 +53,24 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
   }
 
   hash(): Uint8Array {
-    const encodedNode = this.encode()
+    const encodedNode = this.rlpEncode()
     const hashed = keccak256(encodedNode)
     this.debug(`BranchNode hash: ${hashed}`)
     return hashed
   }
   async get(rawKey: Uint8Array): Promise<Uint8Array | null> {
-    this.debug(`BranchNode get: rawKey=${rawKey}`)
+    const key = decodeNibbles(rawKey)
+    this.debug(`BranchNode get: rawKey=[${[...rawKey.values()]}], key=${key}`)
     if (rawKey.length === 0) {
       this.debug(`BranchNode get result: ${this.value ? this.value : 'null'}`)
       return this.value
     }
     const index = rawKey[0]
+    this.debug(`BranchNode get: index=${index}`)
     const child = this.children[index]
     if (child) {
-      const result = await child.get(rawKey.slice(1))
+      this.debug(`Child found at index=${index}...getting ChildNode`)
+      const result = await child.get(encodeNibbles(key.slice(1)))
       this.debug(`BranchNode get result: ${result ? result : 'null'}`)
       return result
     }
@@ -88,20 +93,32 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
   setChild(slot: number, node: TNode) {
     this.children[slot] = node
   }
-
   getPartialKey(): Nibble[] {
     return []
   }
   async update(rawKey: Uint8Array, value: Uint8Array): Promise<BranchNode> {
-    const index = firstNibble(rawKey)
-    const updatedBranches = this.children.slice()
-
-    if (updatedBranches[index] !== null) {
-      updatedBranches[index] = await updatedBranches[index]!.update(rawKey.slice(1), value)
+    this.debug(`BranchNode update: rawKey=${rawKey}, value=${value}`)
+    const key = decodeNibbles(rawKey)
+    const index = rawKey[0]
+    this.debug(`BranchNode update: nibbles=${key.toString()} index=${index}`)
+    if (key.length === 1) {
+      this.debug(`The key matches the branch node exactly, update the value`)
+      return new BranchNode({ children: this.children, value })
     } else {
-      updatedBranches[index] = new LeafNode({ key: rawKey.slice(1), value })
+      this.debug(`The key does not match the branch node exactly, update the subtree`)
+      const child = this.children[index]
+      if (child !== null) {
+        const updatedChild = await child.update(encodeNibbles(key.slice(1)), value)
+        const updatedChildren = this.children
+        updatedChildren[index] = updatedChild
+        return new BranchNode({ children: updatedChildren, value: this.value })
+      } else {
+        this.debug(` Create a new leaf node and add it to the branch`)
+        const newLeaf = await TrieNode.create({ key: key.slice(1), value })
+        const updatedChildren = this.children
+        updatedChildren[index] = newLeaf
+        return new BranchNode({ children: updatedChildren, value: this.value })
+      }
     }
-
-    return new BranchNode({ children: updatedBranches, value: this.value })
   }
 }

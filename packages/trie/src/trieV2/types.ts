@@ -1,8 +1,10 @@
+import type { BranchNode, ExtensionNode, LeafNode } from './Node'
 import type { AbstractLevel } from 'abstract-level'
 import type { Debugger } from 'debug'
 import type { LRUCache } from 'lru-cache'
 
 export const nodeType = {
+  NullNode: 'NullNode',
   LeafNode: 'LeafNode',
   BranchNode: 'BranchNode',
   ExtensionNode: 'ExtensionNode',
@@ -12,7 +14,7 @@ export interface NodeOptions {
   hashFunction?: HashFunction
 }
 export type TNodeOptions<T extends NodeType> = T extends 'LeafNode'
-  ? { key: Uint8Array; value: Uint8Array | null } & NodeOptions
+  ? { key: Nibble[]; value: Uint8Array | null } & NodeOptions
   : T extends 'BranchNode'
   ? {
       children: (TNode | null)[]
@@ -27,13 +29,21 @@ export type TOpts =
   | TNodeOptions<'ExtensionNode'>
   | TNodeOptions<'LeafNode'>
 
+export type NodeFromOptions<T extends TNodeOptions<NodeType>> = T extends TNodeOptions<'LeafNode'>
+  ? LeafNode
+  : T extends TNodeOptions<'BranchNode'>
+  ? BranchNode
+  : T extends TNodeOptions<'ExtensionNode'>
+  ? ExtensionNode
+  : never
+
 export interface NodeInterface<T extends NodeType> {
   type: T | undefined
   debug: Debugger
   hashFunction: HashFunction
   keyNibbles: Nibble[]
   getPartialKey(): Nibble[]
-  encode(): Uint8Array
+  rlpEncode(): Uint8Array
   hash(): Uint8Array
   get(rawKey: Uint8Array): Promise<Uint8Array | null>
   getChildren(): Promise<Map<number, TNode>>

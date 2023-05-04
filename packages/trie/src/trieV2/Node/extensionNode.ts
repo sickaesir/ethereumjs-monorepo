@@ -2,7 +2,7 @@ import { RLP } from '@ethereumjs/rlp'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import { equalsBytes } from 'ethereum-cryptography/utils'
 
-import { bytesToNibbles, nibblesCompare } from '../index'
+import { bytesToNibbles, encodeNibbles, nibblesCompare } from '../index'
 
 import { BaseNode } from './index'
 
@@ -16,21 +16,21 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
 
   constructor(options: TNodeOptions<'ExtensionNode'>) {
     super(options)
-    this.key = Uint8Array.from([])
+    this.key = encodeNibbles(options.keyNibbles)
     this.keyNibbles = options.keyNibbles
     this.child = options.subNode
     this.debug(`ExtensionNode created: key=${this.key}, child=${this.child.hash()}`)
   }
 
-  encode(): Uint8Array {
-    this.debug(`ExtensionNode encode: key=${this.key}, child=${this.child.hash()}`)
-    const encodedNode = RLP.encode([this.key, this.child.encode()])
+  rlpEncode(): Uint8Array {
+    this.debug(`ExtensionNode rlpEncode: key=${this.key}, child=${this.child.hash()}`)
+    const encodedNode = RLP.encode([this.key, this.child.rlpEncode()])
     this.debug(`ExtensionNode encoded: ${encodedNode}`)
     return encodedNode
   }
 
   hash(): Uint8Array {
-    const encodedNode = this.encode()
+    const encodedNode = this.rlpEncode()
     const hashed = keccak256(encodedNode)
     this.debug(`ExtensionNode hash: ${hashed}`)
     return hashed
