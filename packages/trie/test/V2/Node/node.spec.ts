@@ -199,16 +199,6 @@ tape('BranchNode', async (t: tape.Test) => {
     const key = hexStringToBytes('0a')
     const newValue = hexStringToBytes('5678')
     await branchNode.update(key, newValue)
-    console.log({
-      keyToDel: key,
-      children: branchNode.children.map((c) => {
-        return {
-          type: c?.type,
-          nibbles: c?.getPartialKey().toString(),
-        }
-      }),
-    })
-
     const deletedBranchNode = await branchNode.delete(key)
 
     st.deepEqual(

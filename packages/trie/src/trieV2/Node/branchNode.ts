@@ -1,7 +1,7 @@
 import { RLP } from '@ethereumjs/rlp'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 
-import { decodeNibbles, encodeNibbles, firstNibble } from '..'
+import { addPadding, decodeNibbles, encodeNibbles, firstNibble } from '..'
 
 import { BaseNode, TrieNode } from './index'
 
@@ -72,9 +72,12 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
     const child = this.children[index]
     if (child) {
       this.debug &&
-        this.debug(`Child found at index=${index}...childNode.get(${encodeNibbles(key)})`)
-      const result = await child.get(encodeNibbles(key.slice(1)))
-      this.debug && this.debug(`BranchNode get result: ${result ? result : 'null'}`)
+        this.debug(
+          `Child found at index=${index}...childNode.get(${encodeNibbles(
+            addPadding(key).slice(1)
+          )})`
+        )
+      const result = await child.get(encodeNibbles(addPadding(key).slice(1)))
       return result
     }
     this.debug && this.debug(`BranchNode get result: null`)

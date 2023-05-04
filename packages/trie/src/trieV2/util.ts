@@ -113,7 +113,8 @@ export function concatNibbles(a: number[], b: number[]): Nibble[] {
 }
 
 export const NIBBLE_PADDING = 0x00
-export function encodeNibbles(nibbles: Nibble[]): Uint8Array {
+export function encodeNibbles(_nibbles: Nibble[]): Uint8Array {
+  const nibbles = [..._nibbles]
   const length = nibbles.length
   const isOddLength = length % 2 === 1
   const encoded: number[] = []
@@ -166,8 +167,12 @@ export function nibblesEqual(a: number[], b: number[]): boolean {
 }
 
 export function addPadding(nibbles: Nibble[]): Nibble[] {
-  if (nibbles.length % 2 === 0) {
-    return [NIBBLE_PADDING, ...nibbles]
+  const length = nibbles.length
+  const isOddLength = length % 2 === 1
+
+  if (isOddLength) {
+    nibbles.unshift(NIBBLE_PADDING)
+    return nibbles
   } else {
     return nibbles
   }
