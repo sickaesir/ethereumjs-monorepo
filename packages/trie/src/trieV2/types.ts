@@ -39,7 +39,7 @@ export type NodeFromOptions<T extends TNodeOptions<NodeType>> = T extends TNodeO
 
 export interface NodeInterface<T extends NodeType> {
   type: T | undefined
-  debug: Debugger
+  debug: Debugger | undefined
   hashFunction: HashFunction
   keyNibbles: Nibble[]
   getPartialKey(): Nibble[]

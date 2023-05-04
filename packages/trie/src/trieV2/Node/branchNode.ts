@@ -31,50 +31,52 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
     this.keyNibbles = []
     this.children = options.children
     this.value = options.value
-    this.debug(
-      `BranchNode created: children=[${this.children
-        .map((child, i) => (child ? `${i}: ${child.hash()}` : ''))
-        .join(', ')}], value=${this.value ? this.value : 'null'}`
-    )
+    this.debug &&
+      this.debug(
+        `BranchNode created: children=[${this.children
+          .map((child, i) => (child ? `${i}: ${child.hash()}` : ''))
+          .join(', ')}], value=${this.value ? this.value : 'null'}`
+      )
   }
 
   rlpEncode(): Uint8Array {
-    this.debug(
-      `BranchNode rlpEncode: children=[${this.children
-        .map((child, i) => (child ? `${i}: ${child.hash()}` : ''))
-        .join(', ')}], value=${this.value ? this.value : 'null'}`
-    )
+    this.debug &&
+      this.debug(
+        `BranchNode rlpEncode: children=[${this.children
+          .map((child, i) => (child ? `${i}: ${child.hash()}` : ''))
+          .join(', ')}], value=${this.value ? this.value : 'null'}`
+      )
     const encodedNode = RLP.encode([
       ...this.children.map((child) => (child ? child.rlpEncode() : Uint8Array.from([]))),
       this.value ?? Uint8Array.from([]),
     ])
-    this.debug(`BranchNode encoded: ${encodedNode}`)
+    this.debug && this.debug(`BranchNode encoded: ${encodedNode}`)
     return encodedNode
   }
 
   hash(): Uint8Array {
     const encodedNode = this.rlpEncode()
     const hashed = keccak256(encodedNode)
-    this.debug(`BranchNode hash: ${hashed}`)
+    this.debug && this.debug(`BranchNode hash: ${hashed}`)
     return hashed
   }
   async get(rawKey: Uint8Array): Promise<Uint8Array | null> {
     const key = decodeNibbles(rawKey)
-    this.debug(`BranchNode get: rawKey=[${[...rawKey.values()]}], key=${key}`)
+    this.debug && this.debug(`BranchNode get: rawKey=[${[...rawKey.values()]}], key=${key}`)
     if (rawKey.length === 0) {
-      this.debug(`BranchNode get result: ${this.value ? this.value : 'null'}`)
+      this.debug && this.debug(`BranchNode get result: ${this.value ? this.value : 'null'}`)
       return this.value
     }
     const index = rawKey[0]
-    this.debug(`BranchNode get: index=${index}`)
+    this.debug && this.debug(`BranchNode get: index=${index}`)
     const child = this.children[index]
     if (child) {
-      this.debug(`Child found at index=${index}...getting ChildNode`)
+      this.debug && this.debug(`Child found at index=${index}...getting ChildNode`)
       const result = await child.get(encodeNibbles(key.slice(1)))
-      this.debug(`BranchNode get result: ${result ? result : 'null'}`)
+      this.debug && this.debug(`BranchNode get result: ${result ? result : 'null'}`)
       return result
     }
-    this.debug(`BranchNode get result: null`)
+    this.debug && this.debug(`BranchNode get result: null`)
     return null
   }
 
@@ -97,15 +99,15 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
     return []
   }
   async update(rawKey: Uint8Array, value: Uint8Array): Promise<BranchNode> {
-    this.debug(`BranchNode update: rawKey=${rawKey}, value=${value}`)
+    this.debug && this.debug(`BranchNode update: rawKey=${rawKey}, value=${value}`)
     const key = decodeNibbles(rawKey)
     const index = rawKey[0]
-    this.debug(`BranchNode update: nibbles=${key.toString()} index=${index}`)
+    this.debug && this.debug(`BranchNode update: nibbles=${key.toString()} index=${index}`)
     if (key.length === 1) {
-      this.debug(`The key matches the branch node exactly, update the value`)
+      this.debug && this.debug(`The key matches the branch node exactly, update the value`)
       return new BranchNode({ children: this.children, value })
     } else {
-      this.debug(`The key does not match the branch node exactly, update the subtree`)
+      this.debug && this.debug(`The key does not match the branch node exactly, update the subtree`)
       const child = this.children[index]
       if (child !== null) {
         const updatedChild = await child.update(encodeNibbles(key.slice(1)), value)
@@ -113,7 +115,7 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
         updatedChildren[index] = updatedChild
         return new BranchNode({ children: updatedChildren, value: this.value })
       } else {
-        this.debug(` Create a new leaf node and add it to the branch`)
+        this.debug && this.debug(` Create a new leaf node and add it to the branch`)
         const newLeaf = await TrieNode.create({ key: key.slice(1), value })
         const updatedChildren = this.children
         updatedChildren[index] = newLeaf

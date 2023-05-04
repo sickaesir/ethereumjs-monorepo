@@ -19,27 +19,27 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
     this.key = encodeNibbles(options.key)
     this.keyNibbles = options.key
     this.value = options.value
-    this.debug(`LeafNode created: key=${options.key}, value=${options.value}`)
+    this.debug && this.debug(`LeafNode created: key=${options.key}, value=${options.value}`)
   }
 
   rlpEncode(): Uint8Array {
-    this.debug(`LeafNode encode: key=${this.key}, value=${this.value}`)
+    this.debug && this.debug(`LeafNode encode: key=${this.key}, value=${this.value}`)
     const encodedNode = RLP.encode([this.key, this.value])
-    this.debug(`LeafNode encoded: ${encodedNode}`)
+    this.debug && this.debug(`LeafNode encoded: ${encodedNode}`)
     return encodedNode
   }
 
   hash(): Uint8Array {
     const encodedNode = this.rlpEncode()
     const hashed = keccak256(encodedNode)
-    this.debug(`LeafNode hash: ${hashed}`)
+    this.debug && this.debug(`LeafNode hash: ${hashed}`)
     return hashed
   }
 
   async get(rawKey: Uint8Array): Promise<Uint8Array | null> {
-    this.debug(`LeafNode get: rawKey=${rawKey}`)
+    this.debug && this.debug(`LeafNode get: rawKey=${rawKey}`)
     const result = equalsBytes(this.key, rawKey) ? this.value : null
-    this.debug(`LeafNode get result: ${result ? result : 'null'}`)
+    this.debug && this.debug(`LeafNode get result: ${result ? result : 'null'}`)
     return result
   }
 

@@ -10,13 +10,15 @@ import type { Debugger } from 'debug'
 
 export abstract class BaseNode {
   public type: NodeType
-  debug: Debugger
+  debug: Debugger | undefined
   hashFunction: HashFunction
   constructor(args: any) {
     this.type = 'NullNode'
     this.debug = debug(this.constructor.name)
+    if (!this.debug.enabled) {
+      this.debug = undefined
+    }
     this.hashFunction = args.hashFunction ?? keccak256
-    this.debug('hey ')
   }
   abstract get(rawKey?: Uint8Array): Promise<Uint8Array | null>
   abstract rlpEncode(): Uint8Array

@@ -26,29 +26,31 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
     super(options)
     this.keyNibbles = unPad(options.keyNibbles)
     this.child = options.subNode
-    this.debug(
-      `ExtensionNode({ keyNibbles ${options.keyNibbles}, child }) created with keyNibbles=${
-        this.keyNibbles
-      }, key=${' '}, childNibbles=${this.child.getPartialKey()}`
-    )
+    this.debug &&
+      this.debug(
+        `ExtensionNode({ keyNibbles ${options.keyNibbles}, child }) created with keyNibbles=${
+          this.keyNibbles
+        }, key=${' '}, childNibbles=${this.child.getPartialKey()}`
+      )
   }
 
   rlpEncode(): Uint8Array {
-    this.debug(
-      `ExtensionNode rlpEncode: keyNibbles=${this.keyNibbles} + child=${this.child.hash()}`
-    )
+    this.debug &&
+      this.debug(
+        `ExtensionNode rlpEncode: keyNibbles=${this.keyNibbles} + child=${this.child.hash()}`
+      )
     const encodedNode = RLP.encode([
       encodeNibbles(addPadding(this.keyNibbles)),
       this.child.rlpEncode(),
     ])
-    this.debug(`ExtensionNode encoded: ${encodedNode}`)
+    this.debug && this.debug(`ExtensionNode encoded: ${encodedNode}`)
     return encodedNode
   }
 
   hash(): Uint8Array {
     const encodedNode = this.rlpEncode()
     const hashed = keccak256(encodedNode)
-    this.debug(`ExtensionNode hash: ${hashed}`)
+    this.debug && this.debug(`ExtensionNode hash: ${hashed}`)
     return hashed
   }
 
@@ -62,14 +64,15 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
     const key = decodeNibbles(rawKey)
 
     if (nibblesEqual(key.slice(0, this.keyNibbles.length), this.keyNibbles)) {
-      this.debug(
-        ` key shares the same prefix as the existing key, get the child: ${this.child.getPartialKey()}`
-      )
+      this.debug &&
+        this.debug(
+          ` key shares the same prefix as the existing key, get the child: ${this.child.getPartialKey()}`
+        )
       const result = await this.child.get(encodeNibbles(key.slice(this.keyNibbles.length)))
-      this.debug(`ExtensionNode get result: ${result === null ? 'null' : result}`)
+      this.debug && this.debug(`ExtensionNode get result: ${result === null ? 'null' : result}`)
       return result
     }
-    this.debug(`ExtensionNode get result: null`)
+    this.debug && this.debug(`ExtensionNode get result: null`)
     return null
   }
 
@@ -78,14 +81,15 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
     const commonPrefixLength = matchingNibbleLength(this.keyNibbles, keyNibbles)
 
     if (commonPrefixLength === this.keyNibbles.length) {
-      this.debug('The key shares the same prefix as the existing key, update the child')
+      this.debug &&
+        this.debug('The key shares the same prefix as the existing key, update the child')
       const updatedChild = await this.child.update(
         encodeNibbles(keyNibbles.slice(commonPrefixLength)),
         value
       )
       return new ExtensionNode({ keyNibbles: this.keyNibbles, subNode: updatedChild })
     } else {
-      this.debug('The key has a different prefix, create a new branch node')
+      this.debug && this.debug('The key has a different prefix, create a new branch node')
       const newLeaf = new LeafNode({ key: keyNibbles.slice(commonPrefixLength + 1), value })
 
       let updatedChild
