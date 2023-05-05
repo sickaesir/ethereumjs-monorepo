@@ -22,7 +22,7 @@ export interface CreateTrieOptions {
   /** A cache for storing recently accessed nodes */
   cache?: LRUCache<Uint8Array, TNode>
 }
-export abstract class MerklePatriciaTrie implements TrieInterface {
+export abstract class _MerklePatriciaTrie implements TrieInterface {
   root: Uint8Array
   nodes: Map<Uint8Array, TNode>
   db: Database
@@ -35,8 +35,8 @@ export abstract class MerklePatriciaTrie implements TrieInterface {
    * @param options - the options to use when creating the trie
    * @returns the created trie
    */
-  static async create(_options: CreateTrieOptions): Promise<MerklePatriciaTrie> {
-    const trie = await MerklePatriciaTrie.create(_options)
+  static async create(_options: CreateTrieOptions): Promise<_MerklePatriciaTrie> {
+    const trie = await _MerklePatriciaTrie.create(_options)
     return trie
   }
   /**
@@ -44,8 +44,8 @@ export abstract class MerklePatriciaTrie implements TrieInterface {
    * @param proof - the proof to create the trie from
    * @returns the created trie
    */
-  static async fromProof(_proof: Uint8Array[]): Promise<MerklePatriciaTrie> {
-    const trie = await MerklePatriciaTrie.create({})
+  static async fromProof(_proof: Uint8Array[]): Promise<_MerklePatriciaTrie> {
+    const trie = await _MerklePatriciaTrie.create({})
     return trie
   }
   /**
@@ -53,8 +53,8 @@ export abstract class MerklePatriciaTrie implements TrieInterface {
    * @param proof - the multi-proof to create the trie from
    * @returns the created trie
    */
-  static async fromMultiProof(_proof: Uint8Array[]): Promise<MerklePatriciaTrie> {
-    const trie = await MerklePatriciaTrie.create({})
+  static async fromMultiProof(_proof: Uint8Array[]): Promise<_MerklePatriciaTrie> {
+    const trie = await _MerklePatriciaTrie.create({})
     return trie
   }
   /**
@@ -103,7 +103,7 @@ export abstract class MerklePatriciaTrie implements TrieInterface {
   abstract commit(): Promise<void>
   abstract revert(): Promise<void>
   abstract revertTo(checkpoint: Uint8Array): Promise<void>
-  abstract copy(): Promise<MerklePatriciaTrie>
+  abstract copy(): Promise<_MerklePatriciaTrie>
 
   abstract createProof(key: Uint8Array): Promise<Uint8Array[]>
   abstract createMultiProof(keys: Uint8Array[]): Promise<Uint8Array[]>
