@@ -89,15 +89,13 @@ export abstract class _MerklePatriciaTrie implements TrieInterface {
   abstract put(key: Uint8Array, value: Uint8Array): Promise<void>
   abstract del(key: Uint8Array): Promise<void>
 
-  abstract walkTrie: (
+  abstract walkTrie(
     startNode: TNode | null,
     currentKey?: Uint8Array | undefined,
     onFound?: OnFoundFunction | undefined,
     filter?: WalkFilterFunction | undefined
-  ) => AsyncIterable<TNode>
-  abstract findPath: (
-    keyNibbles: Nibble[]
-  ) => Promise<{ stack: TNode[]; remainingNibbles: Nibble[] }>
+  ): AsyncIterable<TNode>
+  abstract findPath(keyNibbles: Nibble[]): Promise<{ stack: TNode[]; remainingNibbles: Nibble[] }>
 
   abstract checkpoint(): Promise<void>
   abstract commit(): Promise<void>
