@@ -83,8 +83,6 @@ export interface TrieInterface {
    * @returns A Promise that resolves once the changes have been successfully committed
    */
   commit(): Promise<void>
-  revert(): Promise<void>
-  revertTo(checkpoint: Uint8Array): Promise<void>
 
   /**
    * Reverts the trie to the last checkpointed state
@@ -118,7 +116,7 @@ export interface TrieInterface {
    * @param proof The proof to apply to the trie
    * @returns A promise that resolves when the proof has been applied to the trie
    */
-  updateFromProof(proof: Uint8Array): Promise<void>
+  updateFromProof(proof: Uint8Array[]): Promise<void>
 
   /**
    * Updates the trie state by applying a multiproof to the trie
@@ -140,7 +138,7 @@ export interface TrieInterface {
    * @param operation The operation to perform while the trie is locked
    * @returns A promise that resolves with the result of the operation
    */
-  withLock<T>(operation: () => Promise<T>): Promise<T>
+  _withLock<T>(operation: () => Promise<T>): Promise<T>
   /**
    * Recursively marks all reachable nodes in the trie
    * @param node The node to start marking reachable nodes from
