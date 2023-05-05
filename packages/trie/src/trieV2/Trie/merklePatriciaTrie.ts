@@ -7,12 +7,69 @@ export class MerklePatriciaTrie extends _MerklePatriciaTrie {
   constructor(options: CreateTrieOptions) {
     super(options)
   }
-  async get(_key: Uint8Array): Promise<Uint8Array | null> {
-    return null
-  }
-  async put(_key: Uint8Array, _value: Uint8Array): Promise<void> {}
-  async del(_key: Uint8Array): Promise<void> {}
+  async get(key: Uint8Array): Promise<Uint8Array | null> {
+    let currentNode: TNode | null = await this._lookupNode(this.root)
+    let foundValue: Uint8Array | null = null
+    // Traverse the tree until we hit a null node or a leaf node with matching key
+    while (currentNode && !foundValue) {
+      switch (currentNode.type) {
+        case 'LeafNode':
+          if (equalsBytes(currentNode.key, key)) {
+            foundValue = currentNode.value
+          }
+          break
+        case 'BranchNode':
+          if ((await currentNode.getChildren()).has(key[currentNode.keyNibbles.length])) {
+            const childNode = await this._getNode(
+              currentNode.children[key[currentNode.keyNibbles.length]],
+              key
+            )
+            currentNode = childNode
+          } else {
+            currentNode = null
+          }
+          break
+        case 'ExtensionNode':
+          if (
+            key.byteLength >= currentNode.keyNibbles.length &&
+            nibblesEqual(
+              currentNode.keyNibbles,
+              [...key.values()].slice(0, currentNode.keyNibbles.length)
+            )
+          ) {
+            const childNode = await this._getNode(currentNode.child, key)
+            currentNode = childNode
+          } else {
+            currentNode = null
+          }
+          break
+        default:
+          throw new Error(`Unexpected node type: ${(currentNode as TNode).type}`)
+      }
+    }
 
+    return foundValue
+  }
+
+  async put(key: Uint8Array, value: Uint8Array | null): Promise<void> {
+    this.root = await this._update([...key.values()], value)
+  }
+  async del(key: Uint8Array): Promise<void> {
+    // Find the value for the given key
+    const currentValue = await this.get(key)
+    if (currentValue === null) {
+      return
+    }
+
+    // Update the trie with null value to delete the key
+    await this._update(decodeNibbles(key), null)
+
+    // Garbage collect the unreachable nodes
+    await this.garbageCollect()
+  }
+  async update(key: Uint8Array, value: Uint8Array | null): Promise<void> {
+    this.root = await this._update([...key.values()], value)
+  }
   async *walkTrie(
     _startNode: TNode | null,
     _currentKey?: Uint8Array | undefined,
