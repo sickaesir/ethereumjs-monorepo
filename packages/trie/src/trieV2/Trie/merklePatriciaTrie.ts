@@ -1,6 +1,6 @@
 import { equalsBytes } from 'ethereum-cryptography/utils'
 
-import { LeafNode, decodeNibbles, encodeNibbles, nibblesEqual } from '..'
+import { LeafNode, TrieNode, decodeNibbles, encodeNibbles, nibblesEqual } from '..'
 
 import { _MerklePatriciaTrie } from './abstractTrie'
 
@@ -110,16 +110,67 @@ export class MerklePatriciaTrie extends _MerklePatriciaTrie {
   ): Promise<void> {}
   async _collectReachableNodes(_node: TNode, _visitedNodes: Set<TNode>): Promise<void> {}
 
-  async _storeNode(_node: TNode): Promise<void> {}
-  async _deleteNode(_node: TNode): Promise<void> {}
-  async _insertNode(_node: TNode): Promise<TNode> {
-    return {} as TNode
+  async _storeNode(node: TNode): Promise<void> {
+    this.cache.set(node.hash(), node)
+    await this.put(node.hash(), node.rlpEncode())
   }
-  async _lookupNode(_key: Uint8Array): Promise<TNode | null> {
-    return null
+  async _deleteNode(node: TNode): Promise<void> {
+    await this.del(node.hash())
   }
-  async _getNode(_node: TNode, _key: Uint8Array): Promise<TNode | null> {
-    return null
+  async _insertNode(node: TNode): Promise<TNode> {
+    await this._storeNode(node)
+    const newRoot = await this._lookupNode(this.root)
+    if (newRoot === null) {
+      throw new Error('Failed to insert node')
+    }
+    return newRoot
+  }
+  async _lookupNode(key: Uint8Array): Promise<TNode | null> {
+    const cachedNode = this.cache.get(key)
+    if (cachedNode) {
+      return cachedNode
+    }
+
+    const serializedNode = await this.db.get(key)
+    if (!serializedNode) {
+      return null
+    }
+
+    const node = await TrieNode.decodeToNode(serializedNode)
+    this.cache.set(key, node)
+    return node
+  }
+  async _getNode(node: TNode, key: Uint8Array): Promise<TNode | null> {
+    const cachedNode = this.cache.get(node.hash())
+    if (cachedNode) {
+      return cachedNode
+    }
+
+    let childNode: TNode | null = null
+    switch (node.type) {
+      case 'BranchNode':
+        if (node.children[key[node.keyNibbles.length]].type !== 'NullNode') {
+          childNode = await this._lookupNode(node.children[key[node.keyNibbles.length]].hash())
+        }
+        break
+      case 'ExtensionNode':
+        if (
+          key.byteLength >= node.keyNibbles.length &&
+          nibblesEqual(node.keyNibbles, [...key.values()].slice(0, node.keyNibbles.length))
+        ) {
+          childNode = await this._lookupNode(node.child.hash())
+        }
+        break
+      default:
+        throw new Error(`Unexpected node type: ${(node as TNode).type}`)
+    }
+
+    if (!childNode) {
+      return null
+    }
+
+    this.cache.set(childNode.hash(), childNode)
+    return childNode
   }
   _hashToKey(_hash: Uint8Array): Uint8Array {
     return new Uint8Array()
