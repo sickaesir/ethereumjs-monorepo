@@ -2,7 +2,7 @@ import { RLP } from '@ethereumjs/rlp'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import { equalsBytes } from 'ethereum-cryptography/utils'
 
-import { decodeNibbles, encodeNibbles, nibblesEqual, unPad } from '../util'
+import { decodeNibbles, encodeNibbles, nibblesEqual } from '../util'
 
 import { BaseNode, NullNode } from './index'
 
@@ -17,7 +17,7 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
   constructor(options: TNodeOptions<'LeafNode'>) {
     super(options)
     this.key = encodeNibbles(options.key)
-    this.keyNibbles = unPad(options.key)
+    this.keyNibbles = options.key
     this.value = options.value
     this.debug && this.debug(`LeafNode created: key=${options.key}, value=${options.value}`)
   }

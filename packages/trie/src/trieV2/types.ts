@@ -17,7 +17,7 @@ export type TNodeOptions<T extends NodeType> = T extends 'LeafNode'
   ? { key: Nibble[]; value: Uint8Array | null } & NodeOptions
   : T extends 'BranchNode'
   ? {
-      children: (TNode | null)[]
+      children: TNode[]
       value: Uint8Array | null
     } & NodeOptions
   : T extends 'ExtensionNode'
@@ -56,7 +56,7 @@ export interface Ileaf extends NodeInterface<'LeafNode'> {
   value: Uint8Array | null
 }
 export interface Ibranch extends NodeInterface<'BranchNode'> {
-  children: (TNode | null)[]
+  children: TNode[]
   value: Uint8Array | null
 }
 export interface Iextension extends NodeInterface<'ExtensionNode'> {

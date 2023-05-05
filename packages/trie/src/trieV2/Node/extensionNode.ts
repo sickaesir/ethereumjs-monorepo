@@ -77,46 +77,61 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
   }
 
   async update(rawKey: Uint8Array, value: Uint8Array): Promise<TNode> {
-    this.debug && this.debug(`ExtensionNode update: rawKey=${rawKey}...value=${value}`)
-    const keyNibbles = decodeNibbles(rawKey)
-    const commonPrefixLength = matchingNibbleLength(this.keyNibbles, keyNibbles)
-    if (commonPrefixLength === this.keyNibbles.length) {
-      this.debug &&
-        this.debug('The key shares the same prefix as the existing key, update the child')
-      const updatedChild = await this.child.update(
-        encodeNibbles(keyNibbles.slice(commonPrefixLength)),
-        value
-      )
+    this.debug && this.debug(`ExtensionNode update: rawKey=${rawKey}, value=${value}`)
+    const key = decodeNibbles(rawKey)
+    const matching = matchingNibbleLength(this.keyNibbles, key)
+
+    // If the entire key matches
+    if (matching === this.keyNibbles.length && matching === key.length) {
+      const updatedChild = await this.child.update(new Uint8Array(), value)
       return new ExtensionNode({ keyNibbles: this.keyNibbles, subNode: updatedChild })
-    } else {
-      this.debug && this.debug('The key has a different prefix, create a new branch node')
-      const newLeaf = new LeafNode({ key: keyNibbles.slice(commonPrefixLength), value })
-
-      let updatedChild
-      if (this.child instanceof LeafNode) {
-        updatedChild = this.child.updateKey(this.keyNibbles.slice(commonPrefixLength + 1))
-      } else if (this.child instanceof BranchNode) {
-        updatedChild = this.child // no need to update the key, handled by the branch node
-      } else {
-        throw new Error('updateKey method not supported for this node type')
-      }
-
-      const branchNode = await BranchNode.fromTwoNodes(
-        [this.keyNibbles[commonPrefixLength]],
-        updatedChild,
-        [keyNibbles[commonPrefixLength]],
-        newLeaf
-      )
-
-      if (commonPrefixLength === 0) {
-        return branchNode
-      } else {
-        return new ExtensionNode({
-          keyNibbles: this.keyNibbles.slice(0, commonPrefixLength),
-          subNode: branchNode,
-        })
-      }
     }
+
+    // If there's a partial match
+    if (matching > 0 && matching < this.keyNibbles.length) {
+      const updatedChild = await this.child.update(encodeNibbles(key.slice(matching)), value)
+      const newKeyNibbles = this.keyNibbles.slice(0, matching)
+      const branch = new BranchNode({
+        children: [
+          ...Array(matching).fill(new NullNode()),
+          new ExtensionNode({ keyNibbles: this.keyNibbles.slice(matching), subNode: updatedChild }),
+          new ExtensionNode({
+            keyNibbles: key.slice(matching),
+            subNode: new LeafNode({ key: [], value }),
+          }),
+          ...Array(16 - matching - 2).fill(new NullNode()),
+        ],
+        value: null,
+      })
+
+      return newKeyNibbles.length > 0
+        ? new ExtensionNode({ keyNibbles: newKeyNibbles, subNode: branch })
+        : branch
+    }
+
+    // If the keys don't match at all
+    if (matching === 0) {
+      const branch = new BranchNode({
+        children: [
+          ...Array(this.keyNibbles[0]).fill(new NullNode()),
+          this,
+          new LeafNode({ key: key.slice(1), value }),
+          ...Array(15 - this.keyNibbles[0]).fill(new NullNode()),
+        ],
+        value: null,
+      })
+
+      return branch
+    }
+
+    // If the extension key is a prefix of the new key
+    if (matching === this.keyNibbles.length) {
+      const updatedChild = await this.child.update(encodeNibbles(key.slice(matching)), value)
+      return new ExtensionNode({ keyNibbles: this.keyNibbles, subNode: updatedChild })
+    }
+
+    // This line should not be reached, but we keep it to satisfy TypeScript
+    return this
   }
 
   async delete(rawKey: Uint8Array): Promise<ExtensionNode | NullNode> {

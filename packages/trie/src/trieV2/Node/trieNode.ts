@@ -2,7 +2,7 @@ import { RLP } from '@ethereumjs/rlp'
 
 import { bytesToNibbles, decodeNibbles } from '..'
 
-import { BranchNode, ExtensionNode, LeafNode } from './index'
+import { BranchNode, ExtensionNode, LeafNode, NullNode } from './index'
 
 import type { NodeFromOptions, NodeType, TNode, TOpts } from '..'
 
@@ -30,14 +30,14 @@ export class TrieNode {
           return TrieNode.create({ key: decodeNibbles(key), value })
         }
         case 'BranchNode': {
-          const children: (TNode | null)[] = []
+          const children: TNode[] = []
           for (let i = 0; i < 16; i++) {
             const branch = raw[i]
             if (branch.length > 0) {
               const node = await TrieNode.decode(branch)
               children.push(node)
             } else {
-              children.push(null)
+              children.push(new NullNode())
             }
           }
           return TrieNode.create({

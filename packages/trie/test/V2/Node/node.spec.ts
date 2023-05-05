@@ -112,7 +112,7 @@ tape('BranchNode', async (t: tape.Test) => {
   const children = await Promise.all(
     Array.from({ length: 16 }, (_v, k) => {
       return k % 2 === 0
-        ? null
+        ? new NullNode()
         : TrieNode.create({
             key: [k],
             value: Uint8Array.from([1, 2, 3, k]),
@@ -135,8 +135,16 @@ tape('BranchNode', async (t: tape.Test) => {
       branch2.rlpEncode(),
       'create produces same node as constructor'
     )
-    st.deepEqual(branch.children, children, 'TrieNode created BranchNode with children')
-    st.deepEqual(branch2.children, children, 'BranchNode created by constructor with children')
+    st.equal(
+      JSON.stringify(branch.children),
+      JSON.stringify(children),
+      'TrieNode created BranchNode with children'
+    )
+    st.equal(
+      JSON.stringify(branch2.children),
+      JSON.stringify(children),
+      'BranchNode created by constructor with children'
+    )
     st.equal(branch.children.length, 16, 'children attribute has null nodes')
     st.deepEqual(branch.getPartialKey(), [], 'BranchNode should have no partial key')
     st.deepEqual(branch.hash(), keccak256(branch.rlpEncode()), 'branch.hash()')
@@ -157,30 +165,33 @@ tape('BranchNode', async (t: tape.Test) => {
       'branch.get() returned branch.value'
     )
     let bIdx = 1
+    let child = children[bIdx]
     st.deepEqual(
-      await branch.get(Uint8Array.from([bIdx])),
-      children[bIdx]?.value ?? null,
+      await branch.get(encodeNibbles([...branch.keyNibbles, bIdx])),
+      child instanceof LeafNode ? child.value : null,
       'branch.get found a child'
     )
     bIdx = 2
+    child = children[bIdx]
     st.deepEqual(
-      await branch.get(Uint8Array.from([bIdx])),
-      children[bIdx]?.value ?? null,
+      await branch.get(encodeNibbles([bIdx])),
+      child instanceof LeafNode ? child.value : null,
       'branch.get found a child'
     )
     bIdx = 3
+    child = children[bIdx]
     st.deepEqual(
-      await branch.get(Uint8Array.from([bIdx])),
-      children[bIdx]?.value ?? null,
+      await branch.get(encodeNibbles([bIdx])),
+      'value' in child ? child.value : null,
       'branch.get found a child'
     )
   })
 
   t.test('update', async (st) => {
-    const branches = new Array(16).fill(null)
+    const branches = new Array(16).fill(new NullNode())
     const value = hexStringToBytes('1234')
     const branchNode = await TrieNode.create({ children: branches, value })
-    const key = hexStringToBytes('1a') // Use a complete byte for the key
+    const key = hexStringToBytes('1a')
     const newValue = hexStringToBytes('5678')
     const updatedBranchNode = await branchNode.update(key, newValue)
 
@@ -193,19 +204,30 @@ tape('BranchNode', async (t: tape.Test) => {
   })
 
   t.test('delete', async (st) => {
-    const branches = new Array(16).fill(null)
+    const branches = new Array(16).fill(new NullNode())
     const value = hexStringToBytes('1234')
     const branchNode = await TrieNode.create({ children: branches, value })
-    const key = hexStringToBytes('0a')
+    const key = Uint8Array.from([0x0, 0xa])
     const newValue = hexStringToBytes('5678')
-    await branchNode.update(key, newValue)
-    const deletedBranchNode = await branchNode.delete(key)
+    const updated = await branchNode.update(key, newValue)
+    const deleted = await updated.delete(key)
 
-    st.deepEqual(
-      await deletedBranchNode.get(key),
-      null,
-      'delete should remove the value for the given key'
-    )
+    st.deepEqual(await updated.get(key), newValue, 'update should set the value for the given key')
+
+    st.deepEqual(await deleted.get(key), null, 'delete should remove the value for the given key')
+    st.end()
+  })
+
+  t.test('get after multiple updates on the same key', async (st) => {
+    const branches = new Array(16).fill(new NullNode())
+    const branchNode = await TrieNode.create({ children: branches, value: null })
+    const key = hexStringToBytes('0a')
+    const value1 = hexStringToBytes('1234')
+    const value2 = hexStringToBytes('5678')
+    const updated1 = await branchNode.update(key, value1)
+    const updated2 = await updated1.update(key, value2)
+
+    st.deepEqual(await updated2.get(key), value2, 'should return the latest value for the same key')
     st.end()
   })
 
