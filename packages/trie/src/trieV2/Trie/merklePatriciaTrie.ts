@@ -141,12 +141,64 @@ export class MerklePatriciaTrie extends _MerklePatriciaTrie {
   async updateFromProof(_proof: Uint8Array[]): Promise<void> {}
   async updateFromMultiProof(_proof: Uint8Array[]): Promise<void> {}
 
-  async garbageCollect(): Promise<void> {}
-  async _markReachableNodes(
-    _node: TNode | null,
-    _reachableHashes: Set<Uint8Array>
-  ): Promise<void> {}
-  async _collectReachableNodes(_node: TNode, _visitedNodes: Set<TNode>): Promise<void> {}
+  async garbageCollect(): Promise<void> {
+    const reachableHashes = new Set<Uint8Array>()
+    await this._markReachableNodes(await this._lookupNode(this.root), reachableHashes)
+    const visitedNodes = new Set<TNode>()
+    await this._collectReachableNodes(await this._lookupNode(this.root), visitedNodes)
+    const nodesToDelete = [...this.nodes.values()].filter((node) => !visitedNodes.has(node))
+
+    for (const node of nodesToDelete) {
+      await this._deleteNode(node)
+    }
+  }
+
+  async _markReachableNodes(node: TNode | null, reachableHashes: Set<Uint8Array>): Promise<void> {
+    if (!node) {
+      return
+    }
+
+    reachableHashes.add(node.hash())
+    switch (node.type) {
+      case 'BranchNode':
+        for (const child of Object.values(await node.getChildren())) {
+          await this._markReachableNodes(await this._lookupNode(child.hash()), reachableHashes)
+        }
+        break
+      case 'ExtensionNode':
+        await this._markReachableNodes(await this._lookupNode(node.child.hash()), reachableHashes)
+        break
+      default:
+        break
+    }
+  }
+
+  async _collectReachableNodes(node: TNode | null, visitedNodes: Set<TNode>): Promise<void> {
+    if (node === null) {
+      return
+    }
+    let childNode: TNode | null = null
+    visitedNodes.add(node)
+
+    switch (node.type) {
+      case 'BranchNode':
+        for (const child of Object.values(await node.getChildren())) {
+          childNode = await this._lookupNode(child.hash())
+          if (childNode && !visitedNodes.has(childNode)) {
+            await this._collectReachableNodes(childNode, visitedNodes)
+          }
+        }
+        break
+      case 'ExtensionNode':
+        childNode = await this._lookupNode(node.child.hash())
+        if (childNode && !visitedNodes.has(childNode)) {
+          await this._collectReachableNodes(childNode, visitedNodes)
+        }
+        break
+      default:
+        break
+    }
+  }
 
   async _storeNode(node: TNode): Promise<void> {
     this.cache.set(node.hash(), node)
