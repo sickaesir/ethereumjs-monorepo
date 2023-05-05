@@ -1,4 +1,4 @@
-import { equalsBytes } from 'ethereum-cryptography/utils'
+import { bytesToHex, equalsBytes } from 'ethereum-cryptography/utils'
 
 import { LeafNode, TrieNode, decodeNibbles, encodeNibbles, nibblesEqual } from '..'
 
@@ -86,10 +86,48 @@ export class MerklePatriciaTrie extends _MerklePatriciaTrie {
     return {} as Promise<{ stack: TNode[]; remainingNibbles: Nibble[] }>
   }
 
-  async checkpoint(): Promise<void> {}
-  async commit(): Promise<void> {}
-  async revert(): Promise<void> {}
-  async revertTo(_checkpoint: Uint8Array): Promise<void> {}
+  async checkpoint(): Promise<void> {
+    const root = await this._lookupNode(this.root)
+    if (root !== null) {
+      this.checkpoints.push(root.hash())
+    }
+  }
+
+  async commit(): Promise<void> {
+    this.checkpoints = []
+  }
+
+  async revert(): Promise<void> {
+    if (this.checkpoints.length === 0) {
+      throw new Error('No checkpoint to revert to')
+    }
+
+    const checkpointHash = this.checkpoints.pop() as Uint8Array
+    const checkpointNode = await this._lookupNode(checkpointHash)
+    if (!checkpointNode) {
+      throw new Error(`Checkpoint not found: ${bytesToHex(checkpointHash)}`)
+    }
+
+    this.root = checkpointHash
+    this.cache.clear()
+  }
+
+  async revertTo(checkpoint: Uint8Array): Promise<void> {
+    const checkpointNode = await this._lookupNode(checkpoint)
+    if (!checkpointNode) {
+      throw new Error(`Checkpoint not found: ${bytesToHex(checkpoint)}`)
+    }
+
+    const checkpointIndex = this.checkpoints.findIndex((c) => equalsBytes(c, checkpoint))
+    if (checkpointIndex === -1) {
+      throw new Error(`Checkpoint not found: ${bytesToHex(checkpoint)}`)
+    }
+
+    this.checkpoints = this.checkpoints.slice(0, checkpointIndex + 1)
+    this.root = checkpoint
+    this.cache.clear()
+  }
+
   async copy(): Promise<_MerklePatriciaTrie> {
     return {} as _MerklePatriciaTrie
   }
