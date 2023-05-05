@@ -6,6 +6,8 @@ import * as tape from 'tape'
 import { encodeNibbles } from '../../../src/trieV2'
 import { BranchNode, ExtensionNode, LeafNode, NullNode, TrieNode } from '../../../src/trieV2/Node'
 
+import type { TNode } from '../../../src/trieV2'
+
 tape('LeafNode', async (t: tape.Test) => {
   const key = [1, 2, 3, 4]
   const encodedKey = encodeNibbles(key)
@@ -220,14 +222,86 @@ tape('BranchNode', async (t: tape.Test) => {
 
   t.test('get after multiple updates on the same key', async (st) => {
     const branches = new Array(16).fill(new NullNode())
-    const branchNode = await TrieNode.create({ children: branches, value: null })
+    let branchNode = await TrieNode.create({ children: branches, value: null })
     const key = hexStringToBytes('0a')
     const value1 = hexStringToBytes('1234')
     const value2 = hexStringToBytes('5678')
-    const updated1 = await branchNode.update(key, value1)
-    const updated2 = await updated1.update(key, value2)
+    branchNode = await branchNode.update(key, value1)
+    branchNode = await branchNode.update(key, value2)
 
-    st.deepEqual(await updated2.get(key), value2, 'should return the latest value for the same key')
+    st.deepEqual(
+      await branchNode.get(key),
+      value2,
+      'should return the latest value for the same key'
+    )
+    st.end()
+  })
+
+  t.test('get after multiple updates on different keys', async (st) => {
+    const branches = new Array(16).fill(new NullNode())
+    let branchNode = await TrieNode.create({ children: branches, value: null })
+    const key1 = hexStringToBytes('0a')
+    const key2 = hexStringToBytes('1b')
+    const value1 = hexStringToBytes('1234')
+    const value2 = hexStringToBytes('5678')
+    branchNode = await branchNode.update(key1, value1)
+    branchNode = await branchNode.update(key2, value2)
+
+    st.deepEqual(
+      await branchNode.get(key1),
+      value1,
+      'should return the correct value for the first key'
+    )
+    st.deepEqual(
+      await branchNode.get(key2),
+      value2,
+      'should return the correct value for the second key'
+    )
+    st.end()
+  })
+  t.test('update with common prefix', async (st) => {
+    const branches = new Array(16).fill(new NullNode())
+    let branchNode = await TrieNode.create({ children: branches, value: null })
+    const key1 = hexStringToBytes('0a')
+    const key2 = hexStringToBytes('0b')
+    const value1 = hexStringToBytes('1234')
+    const value2 = hexStringToBytes('5678')
+    branchNode = await branchNode.update(key1, value1)
+    branchNode = await branchNode.update(key2, value2)
+
+    st.deepEqual(
+      await branchNode.get(key1),
+      value1,
+      'should return the correct value for the first key'
+    )
+    st.deepEqual(
+      await branchNode.get(key2),
+      value2,
+      'should return the correct value for the second key'
+    )
+    st.end()
+  })
+  t.test('delete with common prefix', async (st) => {
+    const branches = new Array(16).fill(new NullNode())
+    let branchNode: TNode = await TrieNode.create({ children: branches, value: null })
+    const key1 = hexStringToBytes('0a')
+    const key2 = hexStringToBytes('0b')
+    const value1 = hexStringToBytes('1234')
+    const value2 = hexStringToBytes('5678')
+    branchNode = await branchNode.update(key1, value1)
+    branchNode = await branchNode.update(key2, value2)
+    branchNode = await branchNode.delete(key1)
+
+    st.deepEqual(
+      await branchNode.get(key1),
+      null,
+      'should return null after deleting the first key'
+    )
+    st.deepEqual(
+      await branchNode.get(key2),
+      value2,
+      'should return the correct value for the second key'
+    )
     st.end()
   })
 
