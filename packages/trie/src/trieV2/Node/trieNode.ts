@@ -20,8 +20,10 @@ export class TrieNode {
     }
     return node
   }
-  static async decode(encoded: Uint8Array): Promise<TNode> {
-    {
+  static async decodeToNode(encoded: Uint8Array): Promise<TNode> {
+    if (encoded.length === 0) {
+      return new NullNode()
+    } else {
       const raw = RLP.decode(encoded) as Uint8Array[]
       const type = TrieNode._type(encoded)
       switch (type) {
@@ -34,7 +36,7 @@ export class TrieNode {
           for (let i = 0; i < 16; i++) {
             const branch = raw[i]
             if (branch.length > 0) {
-              const node = await TrieNode.decode(branch)
+              const node = await TrieNode.decodeToNode(branch)
               children.push(node)
             } else {
               children.push(new NullNode())
@@ -47,7 +49,7 @@ export class TrieNode {
         }
         case 'ExtensionNode': {
           const [key, subNodeRlp] = raw
-          const subNode = await TrieNode.decode(subNodeRlp)
+          const subNode = await TrieNode.decodeToNode(subNodeRlp)
           return TrieNode.create({ keyNibbles: bytesToNibbles(key as Uint8Array), subNode })
         }
         default:
@@ -56,11 +58,11 @@ export class TrieNode {
     }
   }
 
-  static _raw(encoded: Uint8Array): Uint8Array[] {
+  static _rlpDecode(encoded: Uint8Array): Uint8Array[] {
     return RLP.decode(encoded) as Uint8Array[]
   }
   static _type(encoded: Uint8Array): NodeType {
-    const raw = TrieNode._raw(encoded)
+    const raw = TrieNode._rlpDecode(encoded)
     const type =
       raw.length === 17
         ? 'BranchNode'
