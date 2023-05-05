@@ -1,3 +1,7 @@
+import { equalsBytes } from 'ethereum-cryptography/utils'
+
+import { LeafNode, decodeNibbles, encodeNibbles, nibblesEqual } from '..'
+
 import { _MerklePatriciaTrie } from './abstractTrie'
 
 import type { Nibble, OnFoundFunction, TNode, WalkFilterFunction } from '../types'
@@ -96,7 +100,6 @@ export class MerklePatriciaTrie extends _MerklePatriciaTrie {
   async createMultiProof(_keys: Uint8Array[]): Promise<Uint8Array[]> {
     return []
   }
-  async update(_key: Uint8Array, _value: Uint8Array | null): Promise<void> {}
   async updateFromProof(_proof: Uint8Array[]): Promise<void> {}
   async updateFromMultiProof(_proof: Uint8Array[]): Promise<void> {}
 
@@ -109,7 +112,9 @@ export class MerklePatriciaTrie extends _MerklePatriciaTrie {
 
   async _storeNode(_node: TNode): Promise<void> {}
   async _deleteNode(_node: TNode): Promise<void> {}
-  async _insertNode(_node: TNode): Promise<void> {}
+  async _insertNode(_node: TNode): Promise<TNode> {
+    return {} as TNode
+  }
   async _lookupNode(_key: Uint8Array): Promise<TNode | null> {
     return null
   }

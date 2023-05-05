@@ -115,7 +115,7 @@ export abstract class _MerklePatriciaTrie implements TrieInterface {
 
   abstract _storeNode(node: TNode): Promise<void>
   abstract _deleteNode(node: TNode): Promise<void>
-  abstract _insertNode(node: TNode): Promise<void>
+  abstract _insertNode(node: TNode): Promise<TNode>
   abstract _lookupNode(key: Uint8Array): Promise<TNode | null>
   abstract _getNode(node: TNode, key: Uint8Array): Promise<TNode | null>
   abstract _hashToKey(hash: Uint8Array): Uint8Array

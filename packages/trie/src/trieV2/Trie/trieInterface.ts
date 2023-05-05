@@ -177,8 +177,9 @@ export interface TrieInterface {
    * Inserts a node into the node cache and database.
    *
    * @param node - The node to be inserted.
+   * @returns The new RootNode.
    */
-  _insertNode(node: TNode): Promise<void>
+  _insertNode(node: TNode): Promise<TNode>
 
   /**
    * Retrieves a node from a given node, using the provided key.
