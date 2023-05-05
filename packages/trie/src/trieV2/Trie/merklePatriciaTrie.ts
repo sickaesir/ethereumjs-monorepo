@@ -119,9 +119,93 @@ export class MerklePatriciaTrie extends _MerklePatriciaTrie {
   _hashToKey(_hash: Uint8Array): Uint8Array {
     return new Uint8Array()
   }
-  async _update(_keyNibbles: number[], _value: Uint8Array | null): Promise<Uint8Array> {
-    return new Uint8Array()
+  async _update(keyNibbles: Nibble[], value: Uint8Array | null): Promise<Uint8Array> {
+    let currentNode: TNode | null = await this._lookupNode(this.root)
+    const nodesToUpdate: TNode[] = []
+    const nodesToDelete: TNode[] = []
+    const stack: TNode[] = []
+
+    // Traverse the tree until we hit a null node or a leaf node with matching key
+    while (currentNode) {
+      switch (currentNode.type) {
+        case 'LeafNode':
+          if (nibblesEqual(currentNode.keyNibbles, keyNibbles)) {
+            // We found a leaf node with matching key, delete it and remove all deleted nodes from cache
+            nodesToDelete.push(currentNode)
+            this.cache.delete(currentNode.hash())
+          } else {
+            // Leaf node with non-matching key, update the node
+            const newNode = new LeafNode({
+              key: keyNibbles,
+              value,
+            })
+            nodesToUpdate.push(newNode)
+          }
+          break
+        case 'BranchNode':
+          stack.push(currentNode)
+          if ((await currentNode.getChildren()).has(keyNibbles[currentNode.keyNibbles.length])) {
+            const childNode = await this._getNode(
+              currentNode.children[keyNibbles[currentNode.keyNibbles.length]],
+              encodeNibbles(keyNibbles)
+            )
+            currentNode = childNode
+          } else {
+            currentNode = null
+          }
+          break
+        case 'ExtensionNode':
+          stack.push(currentNode)
+          if (
+            keyNibbles.length >= currentNode.keyNibbles.length &&
+            nibblesEqual(
+              currentNode.keyNibbles,
+              [...keyNibbles.values()].slice(0, currentNode.keyNibbles.length)
+            )
+          ) {
+            const childNode = await this._getNode(currentNode.child, encodeNibbles(keyNibbles))
+            currentNode = childNode
+          } else {
+            currentNode = null
+          }
+          break
+        default:
+          throw new Error(`Unexpected node type: ${(currentNode as TNode).type}`)
+      }
+    }
+
+    // If the stack is empty, then we know the root node needs to be updated
+    if (stack.length === 0) {
+      const newRoot = await this._insertNode(new LeafNode({ key: [], value: null }))
+      stack.push(newRoot)
+    }
+
+    // Update the nodes in the stack, and collect all nodes that have been updated or deleted
+    while (stack.length > 0) {
+      const node = stack.pop() as TNode
+      if (node.type === 'BranchNode' || node.type === 'ExtensionNode') {
+        nodesToUpdate.push(node)
+      }
+      if (nodesToDelete.includes(node)) {
+        await this._deleteNode(node)
+      } else {
+        await this._insertNode(node)
+      }
+    }
+
+    // Delete all nodes that have been marked for deletion
+    for (const node of nodesToDelete) {
+      await this._deleteNode(node)
+    }
+
+    // Update all nodes that have been marked for update
+    for (const node of nodesToUpdate) {
+      await this._insertNode(node)
+    }
+
+    return stack[0].hash()
   }
+
   async _withLock<T>(operation: () => Promise<T>): Promise<T> {
     return operation()
   }
