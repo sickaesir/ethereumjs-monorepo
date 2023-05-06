@@ -1,6 +1,9 @@
+import { equalsBytes } from '@ethereumjs/util'
 import { Mutex } from 'async-mutex'
 import debug from 'debug'
 import { LRUCache } from 'lru-cache'
+
+import { ProofNode, TrieNode } from '../Node'
 
 import { Database } from './db'
 
@@ -41,38 +44,90 @@ export abstract class _MerklePatriciaTrie implements TrieInterface {
   }
   /**
    * Creates a new MerklePatriciaTrie from the given proof
-   * @param proof - the proof to create the trie from
+   * @param root - the root hash of the trie
+   * @param proof - array of proof hashes
+   * @param value - the serialized node to verify
    * @returns the created trie
    */
-  static async fromProof(_proof: Uint8Array[]): Promise<_MerklePatriciaTrie> {
+
+  static async fromProof(
+    root: Uint8Array,
+    proof: Uint8Array[],
+    value: Uint8Array
+  ): Promise<_MerklePatriciaTrie> {
     const trie = await _MerklePatriciaTrie.create({})
+    for (const hash of proof) {
+      await trie._insertNode(new ProofNode(hash))
+    }
+    const node = await TrieNode.decodeToNode(value)
+    await trie._insertNode(node)
+    const isValid = equalsBytes(trie.root, root)
+    if (!isValid) {
+      throw new Error('Invalid proof')
+    }
     return trie
   }
   /**
-   * Creates a new MerklePatriciaTrie from the given multi-proof
-   * @param proof - the multi-proof to create the trie from
-   * @returns the created trie
-   */
-  static async fromMultiProof(_proof: Uint8Array[]): Promise<_MerklePatriciaTrie> {
-    const trie = await _MerklePatriciaTrie.create({})
-    return trie
-  }
-  /**
-   * Verifies the given proof
-   * @param proof - the proof to verify
+   * Verifies the given proof against the given root hash
+   * @param root - the root hash of the trie
+   * @param proof - array of proof hashes
+   * @param key - the key to verify
+   * @param value - the serialized node to verify
    * @returns `true` if the proof is valid, `false` otherwise
    */
-  static async verifyProof(_proof: Uint8Array[]): Promise<boolean> {
+  static async verifyProof(
+    root: Uint8Array,
+    proof: Uint8Array[],
+    value: Uint8Array
+  ): Promise<boolean> {
+    const node = await TrieNode.decodeToNode(value)
+    const trie = await _MerklePatriciaTrie.fromProof(root, proof, value)
+    if (!equalsBytes(trie.root, root)) {
+      return false
+    }
+    const stored = await trie._lookupNode(node.hash())
+    if (stored === null) {
+      return false
+    }
+    if (!equalsBytes(stored.rlpEncode(), value)) {
+      return false
+    }
     return true
   }
-  /**
-   * Verifies the given multi-proof
-   * @param proof - the multi-proof to verify
-   * @returns `true` if the multi-proof is valid, `false` otherwise
-   */
-  static async verifyMultiProof(_proof: Uint8Array[]): Promise<boolean> {
-    return true
-  }
+  // /**
+  //  * Creates a new MerklePatriciaTrie from the given multi-proof
+  //  * @param proof - the multi-proof to create the trie from
+  //  * @returns the created trie
+  //  */
+
+  // static async fromMultiProof(
+  //   root: Uint8Array,
+  //   multiProof: Uint8Array[],
+  //   keys: Uint8Array[],
+  //   values: Uint8Array[]
+  // ): Promise<_MerklePatriciaTrie> {
+  //   const trie = await _MerklePatriciaTrie.create({ root })
+  //   const isValid = await _MerklePatriciaTrie.verifyMultiProof(root, multiProof, keys, values)
+  //   if (!isValid) {
+  //     throw new Error('Invalid multi-proof')
+  //   }
+
+  //   for (let i = 0; i < keys.length; i++) {
+  //     await trie.put(keys[i], values[i])
+  //   }
+
+  //   return trie
+  // }
+
+  // /**
+  //  * Verifies the given multi-proof against the given root hash
+  //  * @param root - the root hash of the trie
+  //  * @param proof - the multi-proof to verify
+  //  * @returns `true` if the multi-proof is valid, `false` otherwise
+  //  */
+  // static async verifyMultiProof(_root: Uint8Array, _proof: Uint8Array[]): Promise<boolean> {
+  //   return true
+  // }
   constructor(options: CreateTrieOptions) {
     // super(options)
     this.root = options.root ?? new Uint8Array()
@@ -106,7 +161,7 @@ export abstract class _MerklePatriciaTrie implements TrieInterface {
   abstract createProof(key: Uint8Array): Promise<Uint8Array[]>
   abstract createMultiProof(keys: Uint8Array[]): Promise<Uint8Array[]>
   abstract update(key: Uint8Array, value: Uint8Array | null): Promise<void>
-  abstract updateFromProof(proof: Uint8Array[]): Promise<void>
+  abstract updateFromProof(proof: Uint8Array[], node: Uint8Array): Promise<void>
   abstract updateFromMultiProof(proof: Uint8Array[]): Promise<void>
 
   abstract garbageCollect(): Promise<void>

@@ -56,3 +56,14 @@ export class NullNode extends BaseNode {
     return this
   }
 }
+
+export class ProofNode extends NullNode {
+  _hash: Uint8Array
+  constructor(hash: Uint8Array) {
+    super()
+    this._hash = hash
+  }
+  hash(): Uint8Array {
+    return this._hash
+  }
+}

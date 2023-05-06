@@ -114,9 +114,10 @@ export interface TrieInterface {
   /**
    * Updates the trie state by applying a proof to the trie
    * @param proof The proof to apply to the trie
+   * @param node The node to which the proof applies
    * @returns A promise that resolves when the proof has been applied to the trie
    */
-  updateFromProof(proof: Uint8Array[]): Promise<void>
+  updateFromProof(proof: Uint8Array[], node: Uint8Array): Promise<void>
 
   /**
    * Updates the trie state by applying a multiproof to the trie

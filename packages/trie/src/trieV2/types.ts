@@ -1,10 +1,11 @@
-import type { BranchNode, ExtensionNode, LeafNode, NullNode } from './Node'
+import type { BranchNode, ExtensionNode, LeafNode, NullNode, ProofNode } from './Node'
 import type { AbstractLevel } from 'abstract-level'
 import type { Debugger } from 'debug'
 import type { LRUCache } from 'lru-cache'
 
 export const nodeType = {
   NullNode: 'NullNode',
+  ProofNode: 'ProofNode',
   LeafNode: 'LeafNode',
   BranchNode: 'BranchNode',
   ExtensionNode: 'ExtensionNode',
@@ -22,6 +23,8 @@ export type TNodeOptions<T extends NodeType> = T extends 'LeafNode'
     } & NodeOptions
   : T extends 'ExtensionNode'
   ? { keyNibbles: Nibble[]; subNode: TNode } & NodeOptions
+  : T extends 'ProofNode'
+  ? { hash: Uint8Array }
   : never
 
 export type TOpts =
@@ -64,7 +67,7 @@ export interface Iextension extends NodeInterface<'ExtensionNode'> {
   child: TNode
 }
 
-export type TNode = Ileaf | Ibranch | Iextension | NullNode
+export type TNode = Ileaf | Ibranch | Iextension | NullNode | ProofNode
 
 export type TCreated<T> = T extends NodeInterface<infer R> ? NodeInterface<R> : never
 
