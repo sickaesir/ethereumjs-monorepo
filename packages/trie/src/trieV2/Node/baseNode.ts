@@ -1,3 +1,4 @@
+import { RLP } from '@ethereumjs/rlp'
 import debug from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 
@@ -12,19 +13,25 @@ export abstract class BaseNode {
   public type: NodeType
   debug: Debugger | undefined
   hashFunction: HashFunction
-  constructor(args: any) {
+  constructor(_args: any) {
     this.type = 'NullNode'
     this.debug = debug(this.constructor.name)
     if (!this.debug.enabled) {
       this.debug = undefined
     }
-    this.hashFunction = args.hashFunction ?? keccak256
+    this.hashFunction = keccak256
   }
   abstract get(rawKey?: Uint8Array): Promise<Uint8Array | null>
   abstract rlpEncode(): Uint8Array
-  abstract update(rawKey: Uint8Array, value: Uint8Array): Promise<TNode>
-  abstract getChildren(): Promise<Map<number, TNode>>
+  abstract update(value: Uint8Array): Promise<TNode>
+  abstract getChild(key?: number): TNode | undefined
+  abstract deleteChild(nibble: Nibble): Promise<TNode>
+  abstract updateChild(newChild: TNode, nibble?: Nibble): TNode
+  abstract updateValue(newValue: Uint8Array | null): Promise<TNode>
+  abstract getChildren(): Map<number, TNode>
+  abstract getValue(): Uint8Array | undefined
   abstract getPartialKey(): Nibble[]
+  abstract getType(): NodeType
   abstract delete(rawKey?: Uint8Array): Promise<TNode>
 }
 
@@ -34,7 +41,7 @@ export class NullNode extends BaseNode {
     super({})
   }
   rlpEncode(): Uint8Array {
-    return Uint8Array.from([])
+    return RLP.encode(Uint8Array.from([]))
   }
   hash(): Uint8Array {
     return this.hashFunction(this.rlpEncode())
@@ -42,14 +49,32 @@ export class NullNode extends BaseNode {
   async get(): Promise<Uint8Array | null> {
     return null
   }
-  async getChildren(): Promise<Map<number, TNode>> {
+  getChildren(): Map<number, TNode> {
     return new Map()
+  }
+  getChild(_key: number): TNode {
+    throw new Error('Cannot get child of NullNode')
+  }
+  getType(): NodeType {
+    return 'NullNode'
+  }
+  updateChild(_newChild: TNode, _nibble?: Nibble): TNode {
+    throw new Error('Cannot update child of NullNode')
+  }
+  async deleteChild(_nibble: Nibble) {
+    return this
+  }
+  async updateValue(_newValue: Uint8Array): Promise<TNode> {
+    return this
   }
   getPartialKey(): Nibble[] {
     return []
   }
-  async update(key: Uint8Array, value: Uint8Array): Promise<TNode> {
-    const newNode = await TrieNode.create({ key: decodeNibbles(key), value })
+  getValue(): Uint8Array | undefined {
+    return undefined
+  }
+  async update(value: Uint8Array): Promise<TNode> {
+    const newNode = await TrieNode.create({ key: decodeNibbles(this.hashFunction(value)), value })
     return newNode
   }
   async delete() {
