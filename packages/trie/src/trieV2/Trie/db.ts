@@ -1,58 +1,70 @@
+import { hexStringToBytes } from '@ethereumjs/util'
 import debug from 'debug'
-import { keccak256 } from 'ethereum-cryptography/keccak'
-import { Level } from 'level'
+import { bytesToHex } from 'ethereum-cryptography/utils'
+import { MemoryLevel } from 'memory-level'
 
 import type { Debugger } from 'debug'
+import type { Level } from 'level'
 
 type DBValue = Uint8Array | null
 
 interface Idb {
+  open(): Promise<void>
   get(key: Uint8Array): Promise<DBValue>
-  put(value: DBValue): Promise<Uint8Array>
+  put(key: Uint8Array, value: DBValue): Promise<Uint8Array>
   del(key: Uint8Array): Promise<void>
   batch(items: { type: 'put' | 'del'; key: Uint8Array; value?: Uint8Array }[]): Promise<void>
 }
 
 export class Database implements Idb {
-  private readonly db: Level<Uint8Array, Uint8Array>
+  static async createAndOpen(): Promise<Database> {
+    const db = new Database()
+    await db.db.open()
+    return db
+  }
+  private readonly db: MemoryLevel<string, string>
   private readonly log: Debugger
 
-  constructor(path: string) {
-    this.db = new Level(path)
+  constructor(db?: MemoryLevel<string, string>) {
+    this.db = db ?? (new MemoryLevel({}) as Level<string, string>)
     this.log = debug('trie:db')
   }
 
+  async open(): Promise<void> {
+    await this.db.open()
+    this.log('DB opened')
+  }
   async get(key: Uint8Array): Promise<Uint8Array | null> {
+    this.log.extend('get')(bytesToHex(key))
     try {
-      const value = await this.db.get(key)
-      return value
+      const value = await this.db.get(bytesToHex(key))
+      return hexStringToBytes(value)
     } catch (error: any) {
-      if (error.type === 'NotFoundError') {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
   async del(key: Uint8Array): Promise<void> {
-    await this.db.del(key)
+    this.log.extend('del')(bytesToHex(key))
+    await this.db.del(bytesToHex(key))
   }
 
-  async put(value: Uint8Array): Promise<Uint8Array> {
-    const key = keccak256(value)
-    await this.db.put(key, value)
+  async put(key: Uint8Array, value: Uint8Array): Promise<Uint8Array> {
+    this.log.extend('put')(bytesToHex(key))
+    await this.db.put(bytesToHex(key), bytesToHex(value))
     return key
   }
 
   async batch(
     operations: { type: 'put' | 'del'; key: Uint8Array; value?: Uint8Array }[]
   ): Promise<void> {
+    this.log.extend('batch')(Object.fromEntries(operations.map((op) => op.type).entries()))
     const batch = this.db.batch()
     for (const op of operations) {
       if (op.type === 'put' && op.value) {
-        batch.put(op.key, op.value)
+        batch.put(bytesToHex(op.key), bytesToHex(op.value))
       } else {
-        batch.del(op.key)
+        batch.del(bytesToHex(op.key))
       }
     }
     await batch.write()
@@ -60,5 +72,6 @@ export class Database implements Idb {
 
   async close(): Promise<void> {
     await this.db.close()
+    this.log('DB closed')
   }
 }
