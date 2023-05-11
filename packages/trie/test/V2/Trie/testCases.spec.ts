@@ -198,9 +198,7 @@ tape('MMPT', async (t) => {
     })
     const encoded = branchNode.rlpEncode()
     const decoded = await TrieNode.decodeToNode(encoded, d_bug)
-
     st.equal(decoded.getType(), 'BranchNode', 'should decode to a BranchNode')
-
     st.end()
   })
 
@@ -227,23 +225,42 @@ tape('MMPT', async (t) => {
         `node value should match retrieved value for key ${idx}`
       )
       const proof = await trie.createProof(key, d_bug)
-      try {
-        st.ok(proof, `Proof for key ${idx} should exist -- length:${proof.length}`)
-      } catch (e: any) {
-        st.fail(`Failed to create proof for key ${idx}: ${e.message}`)
+      const fromProof = await Trie.fromProof(trie.root.hash(), proof, d_bug)
+      st.deepEqual(fromProof.root.hash(), trie.root.hash(), `proof should create the same root`)
+      st.ok(proof, `Proof for key ${idx} should exist -- length:${proof.length}`)
+      const verified = await Trie.verifyProof(trie.root.hash(), key, proof, d_bug)
+      if (
+        node?.getValue() &&
+        !equalsBytes(verified instanceof Uint8Array ? verified : Uint8Array.from([]), values[idx])
+      ) {
+        st.fail(
+          `Proof for ${key} failed at index ${idx}. returned incorrect value: ${verified} -- expected: ${values[idx]}`
+        )
         st.end()
         return
       }
-      const verified = await Trie.verifyProof(trie.root.hash(), key, proof, d_bug)
-      if (verified) {
-        st.equal(verified, node.getValue(), `Proof for key ${idx} should verify`)
-      } else {
-        st.fail(`Proof for key ${idx} failed to verify`)
-        st.end()
-        return
+      st.deepEqual(verified, node?.getValue(), `Proof for key ${idx} should verify`)
+    }
+    const sampleSize = Math.floor(testLength / 5)
+    for (let i = 0; i < sampleSize; i++) {
+      const deleteIdx = Math.floor((Math.random() * keys.length * (i + 1)) / sampleSize)
+      const toDelete = keys[deleteIdx]
+      await trie.delete(toDelete, d_bug)
+      const deleted = await trie.get(toDelete, d_bug)
+      st.equal(deleted, null, `deleted key should return null`)
+      try {
+        const nullProof = await trie.createProof(toDelete, d_bug)
+        st.ok(
+          nullProof,
+          `Proof for deleted key ${deleteIdx} should exist -- length:${nullProof.length}`
+        )
+      } catch (e) {
+        st.fail(`Failed to create proof for deleted key ${deleteIdx}: ${(e as any).message}`)
+        throw e
+        // st.end()
+        // return
       }
     }
     st.end()
-    // })
   })
 })

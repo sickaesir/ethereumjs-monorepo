@@ -9,6 +9,7 @@ import {
   getSharedNibbles,
   keyToNibbles,
   nibblesEqual,
+  nibblesToKey,
 } from '../util'
 
 import type { NodeType, TNode } from '../types'
@@ -21,9 +22,10 @@ export class Trie {
     key: Uint8Array,
     proof: TNode[],
     d_bug: Debugger = debug('trie')
-  ): Promise<Uint8Array | null> {
+  ): Promise<Uint8Array | null | false> {
     d_bug = d_bug.extend('verifyProof')
     d_bug(`Verifying proof for key:  ${key}`)
+    d_bug.extend('keyNibbles')(keyToNibbles(key))
     if (!proof.length) {
       throw new Error('Proof is empty')
     }
@@ -37,19 +39,55 @@ export class Trie {
       debug(`Searching child on index ${path[0]}`)
       const child = node.getChild(path[0]) ?? new NullNode()
       if (!equalsBytes(child.hash(), proof[i].hash())) {
-        throw new Error('Proof is invalid')
+        return false
       }
       node = child
       path.shift()
     }
 
     if (node instanceof LeafNode) {
-      d_bug(`Proof verification successful for key: ${key}`)
+      d_bug.extend('LeafNode')(`Proof verification successful for key: ${key}`)
       return node.getValue() ?? null
+    } else if (node instanceof NullNode) {
+      d_bug.extend('NullNode')(`null Proof verification successful for key: ${key}`)
+      return null
+    } else if (node instanceof ExtensionNode) {
+      d_bug.extend('ExtensionNode')(`Proof verification successful for key: ${key}`)
+      return node.child.getValue() ?? null
+    } else if (node instanceof BranchNode) {
+      if (path.length === 0) {
+        return node.getValue() ?? null
+      }
+      d_bug.extend('BranchNode')(`Proof verification successful for key: ${key}`)
+      return node.getChild(path[0])?.getValue() ?? null
     } else {
-      throw new Error('Proof is invalid')
+      return false
     }
   }
+  static async fromProof(
+    rootHash: Uint8Array,
+    proof: TNode[],
+    d_bug: Debugger = debug('trie')
+  ): Promise<Trie> {
+    d_bug = d_bug.extend('fromProof')
+    d_bug(`Building Trie from proof`)
+    if (!proof.length) {
+      throw new Error('Proof is empty')
+    }
+    let root = proof[0]
+    if (!equalsBytes(rootHash, root.hash())) {
+      throw new Error('Proof root hash does not match expected root hash')
+    }
+    const trie = new Trie(root)
+    for (let i = 1; i < proof.length - 1; i++) {
+      const node = proof[i]
+      const key = nibblesToKey(node.getPartialKey())
+      d_bug(`Inserting node at path: ${key}`)
+      root = await trie._insertAtNode(root, keyToNibbles(key), node.getValue() ?? new Uint8Array())
+    }
+    return trie
+  }
+
   root: TNode
   debug: Debugger
   constructor(root?: TNode) {
@@ -112,52 +150,13 @@ export class Trie {
       }
       const child = node.getChild(path[0])
       if (!child) {
-        throw new Error('Key not found in trie')
+        return proof
       }
       node = child
       path.shift()
     }
-    throw new Error('Error in createProof')
+    return proof
   }
-  // async createProof(_key: Uint8Array, debug: Debugger = this.debug): Promise<Uint8Array[]> {
-  //   debug = debug.extend('createProof')
-  //   debug({ _key })
-  //   const proof: Uint8Array[] = []
-  //   let keyNibbles = keyToNibbles(_key)
-  //   let currentNode = this.root
-
-  //   while (keyNibbles.length > 0) {
-  //     switch (currentNode.getType()) {
-  //       case 'NullNode':
-  //         keyNibbles = []
-  //         break
-  //       case 'LeafNode':
-  //         if (nibblesEqual(keyNibbles, currentNode.getPartialKey())) {
-  //           proof.push(currentNode.rlpEncode())
-  //           keyNibbles = []
-  //         } else {
-  //           keyNibbles = []
-  //         }
-  //         break
-  //       case 'BranchNode':
-  //         proof.push(currentNode.rlpEncode())
-  //         currentNode = currentNode.getChild(keyNibbles.shift()!)!
-  //         break
-  //       case 'ExtensionNode':
-  //         if (nibblesEqual(keyNibbles, currentNode.getPartialKey())) {
-  //           proof.push(currentNode.rlpEncode())
-  //           keyNibbles = removeNibbles(keyNibbles, currentNode.getPartialKey().length)
-  //           currentNode = (currentNode as ExtensionNode).getChild()
-  //         } else {
-  //           keyNibbles = []
-  //         }
-  //         break
-  //       case 'ProofNode':
-  //         throw new Error('ProofNodes are not supported')
-  //     }
-  //   }
-  //   return proof
-  // }
   async _insertAtNode(
     node: TNode,
     keyNibbles: number[],
@@ -433,5 +432,27 @@ export class Trie {
       }
     }
     return node
+  }
+  async updateFromProof(
+    rootHash: Uint8Array,
+    proof: TNode[],
+    debug: Debugger = this.debug
+  ): Promise<void> {
+    debug = debug.extend('updateFromProof')
+    debug(`Updating Trie from proof`)
+    if (!proof.length) {
+      throw new Error('Proof is empty')
+    }
+    let root = proof[0]
+    if (!equalsBytes(rootHash, root.hash())) {
+      throw new Error('Proof root hash does not match expected root hash')
+    }
+    this.root = root
+    for (let i = 1; i < proof.length; i++) {
+      const node = proof[i]
+      const key = nibblesToKey(node.getPartialKey())
+      debug(`Inserting node at path: ${key}`)
+      root = await this._insertAtNode(root, keyToNibbles(key), node.getValue() ?? new Uint8Array())
+    }
   }
 }
