@@ -14,6 +14,7 @@ import {
 
 import type { NodeType, TNode } from '../types'
 import type { WalkResult } from '../util'
+import type { CreateTrieOptions } from './abstractTrie'
 import type { Debugger } from 'debug'
 
 export class Trie {
@@ -90,8 +91,8 @@ export class Trie {
 
   root: TNode
   debug: Debugger
-  constructor(root?: TNode) {
-    this.root = root ?? new NullNode()
+  constructor(options: CreateTrieOptions) {
+    this.root = options.rootNode ?? new NullNode()
     this.debug = debug(`Trie`)
   }
   async insert(_key: Uint8Array, _value: Uint8Array, debug: Debugger = this.debug): Promise<void> {
