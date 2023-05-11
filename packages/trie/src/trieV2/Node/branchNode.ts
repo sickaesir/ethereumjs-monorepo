@@ -5,7 +5,7 @@ import { keccak256 } from 'ethereum-cryptography/keccak'
 
 import { matchingNibbleLength } from '..'
 
-import { BaseNode, NullNode } from './index'
+import { BaseNode, ExtensionNode, LeafNode, NullNode } from './index'
 
 import type { Nibble, NodeInterface, NodeType, TNode, TNodeOptions } from '../types'
 
@@ -63,10 +63,10 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
     const childrenRlp: Uint8Array[] = []
     for (let i = 0; i < 16; i++) {
       const child = this.children[i]
-      if (child) {
-        childrenRlp.push(child.rlpEncode() as any)
+      if (child !== undefined) {
+        childrenRlp.push(child.rlpEncode())
       } else {
-        childrenRlp.push(new NullNode().rlpEncode() as any)
+        childrenRlp.push(new NullNode().rlpEncode())
       }
     }
     const encodedNode = RLP.encode([...childrenRlp, this.value ?? Uint8Array.from([])])
@@ -119,6 +119,15 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
   }
   getPartialKey(): Nibble[] {
     return this.keyNibbles
+  }
+  updateKey(newKeyNibbles: number[]): TNode {
+    if (this.value) {
+      // If the BranchNode has a value, it should be converted to a LeafNode
+      return new LeafNode({ key: newKeyNibbles, value: this.value })
+    } else {
+      // If the BranchNode has no value, it should be converted to an ExtensionNode
+      return new ExtensionNode({ keyNibbles: newKeyNibbles, subNode: this })
+    }
   }
   async get(_rawKey: Uint8Array): Promise<Uint8Array | null> {
     throw new Error('Method to be removed.')
