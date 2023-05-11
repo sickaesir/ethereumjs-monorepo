@@ -1,6 +1,6 @@
 import { bytesToHex } from 'ethereum-cryptography/utils'
 
-import type { Nibble } from './types'
+import type { Nibble, TNode } from './types'
 
 /**
  * Converts a bytes to a nibble array.
@@ -76,12 +76,20 @@ export function nibblesCompare(n1: Nibble[], n2: Nibble[]) {
  * @param nib1
  * @param nib2
  */
-export function matchingNibbleLength(nib1: Nibble[], nib2: Nibble[]): number {
-  let i = 0
-  while (nib1[i] === nib2[i] && nib1.length > i) {
-    i++
+// export function matchingNibbleLength(nib1: Nibble[], nib2: Nibble[]): number {
+//   let i = 0
+//   while (nib1[i] === nib2[i] && nib1.length > i) {
+//     i++
+//   }
+//   return i
+// }
+export function matchingNibbleLength(a: Nibble[], b: Nibble[]): number {
+  const maxLength = Math.min(a.length, b.length)
+  let position = 0
+  while (position < maxLength && a[position] === b[position]) {
+    position++
   }
-  return i
+  return position
 }
 
 /**
@@ -113,35 +121,80 @@ export function concatNibbles(a: number[], b: number[]): Nibble[] {
 }
 
 export const NIBBLE_PADDING = 0x00
-export function encodeNibbles(_nibbles: Nibble[]): Uint8Array {
-  const nibbles = [..._nibbles]
-  const length = nibbles.length
-  const isOddLength = length % 2 === 1
-  const encoded: number[] = []
+export const TERMINATOR = 0x10
 
-  if (isOddLength) {
-    nibbles.unshift(NIBBLE_PADDING)
+export function isTerminator(nibble: Nibble): boolean {
+  return nibble === TERMINATOR
+}
+export function stripTerminator(nibbles: Nibble[]): Nibble[] {
+  if (isTerminator(nibbles[nibbles.length - 1])) {
+    return nibbles.slice(0, -1)
   }
-
-  for (let i = 0; i < nibbles.length; i += 2) {
-    encoded.push((nibbles[i] << 4) | nibbles[i + 1])
-  }
-
-  return new Uint8Array(encoded)
+  return nibbles
 }
 
-export function decodeNibbles(encoded: Uint8Array): Nibble[] {
-  const decoded: Nibble[] = []
-
-  for (const byte of encoded) {
-    decoded.push(byte >> 4, byte & 0x0f)
+export function encodeNibbles(nibbles: Nibble[]): Uint8Array {
+  const isTerminator = nibbles[nibbles.length - 1] === TERMINATOR
+  const hasTerminator = isTerminator ? 1 : 0
+  const length = nibbles.length + hasTerminator
+  const buf = new Uint8Array(Math.ceil(length / 2))
+  for (let i = 0; i < length; i++) {
+    const q = Math.floor(i / 2)
+    if (i % 2 === 0) {
+      buf[q] = (nibbles[i] << 4) | (hasTerminator && isTerminator ? 0x0f : 0)
+    } else {
+      buf[q] |= nibbles[i]
+    }
   }
+  return buf
+}
+export function nibblesToKey(nibbles: Nibble[]): Uint8Array {
+  const strippedNibbles = stripTerminator(nibbles)
+  return encodeNibbles(strippedNibbles)
+}
 
-  if (decoded[0] === NIBBLE_PADDING) {
-    decoded.shift()
+export type WalkResult = {
+  node: TNode
+  remainingNibbles: number[]
+}
+export function removeNibbles(nibbles: number[], count: number): number[] {
+  return nibbles.slice(count)
+}
+export function getSharedNibbles(nibbles1: number[], nibbles2: number[]): number[] {
+  const sharedNibbles = []
+  for (let i = 0; i < Math.min(nibbles1.length, nibbles2.length); i++) {
+    if (nibbles1[i] !== nibbles2[i]) {
+      break
+    }
+    sharedNibbles.push(nibbles1[i])
   }
+  return sharedNibbles
+}
+export type CommonPrefixResult = {
+  commonPrefix: number[]
+  remainingNibbles1: number[]
+  remainingNibbles2: number[]
+}
+export function findCommonPrefix(nibbles1: number[], nibbles2: number[]): CommonPrefixResult {
+  const matching = matchingNibbleLength(nibbles1, nibbles2)
+  return {
+    commonPrefix: nibbles1.slice(0, matching),
+    remainingNibbles1: nibbles1.slice(matching),
+    remainingNibbles2: nibbles2.slice(matching),
+  }
+}
 
-  return decoded
+export function decodeNibbles(bytes: Uint8Array): Nibble[] {
+  const nibbles = []
+  for (const byte of bytes) {
+    nibbles.push(byte >> 4)
+    nibbles.push(byte & 0x0f)
+  }
+  return nibbles
+}
+export function keyToNibbles(key: Uint8Array): Nibble[] {
+  const nibbles = decodeNibbles(key)
+  return nibbles
 }
 export function hasMatchingNibbles(a: number[], b: number[]): boolean {
   const minLength = Math.min(a.length, b.length)
@@ -151,36 +204,26 @@ export function hasMatchingNibbles(a: number[], b: number[]): boolean {
       return false
     }
   }
-
   return true
 }
 export function nibblesEqual(a: number[], b: number[]): boolean {
-  if (a.length !== b.length) {
-    return false
-  }
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) {
-      return false
-    }
-  }
-  return true
+  return matchingNibbleLength(a, b) === a.length && a.length === b.length
 }
+// export function addPadding(nibbles: Nibble[]): Nibble[] {
+//   const length = nibbles.length
+//   const isOddLength = length % 2 === 1
 
-export function addPadding(nibbles: Nibble[]): Nibble[] {
-  const length = nibbles.length
-  const isOddLength = length % 2 === 1
-
-  if (isOddLength) {
-    nibbles.unshift(NIBBLE_PADDING)
-    return nibbles
-  } else {
-    return nibbles
-  }
-}
-export function unPad(nibbles: Nibble[]): Nibble[] {
-  if (nibbles[0] === NIBBLE_PADDING) {
-    return nibbles.slice(1)
-  } else {
-    return nibbles
-  }
-}
+//   if (isOddLength) {
+//     nibbles.unshift(NIBBLE_PADDING)
+//     return nibbles
+//   } else {
+//     return nibbles
+//   }
+// }
+// export function unPad(nibbles: Nibble[]): Nibble[] {
+//   if (nibbles[0] === NIBBLE_PADDING) {
+//     return nibbles.slice(1)
+//   } else {
+//     return nibbles
+//   }
+// }

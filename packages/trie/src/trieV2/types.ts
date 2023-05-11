@@ -18,7 +18,7 @@ export type TNodeOptions<T extends NodeType> = T extends 'LeafNode'
   ? { key: Nibble[]; value: Uint8Array | null } & NodeOptions
   : T extends 'BranchNode'
   ? {
-      children: TNode[]
+      children: (TNode | undefined)[]
       value: Uint8Array | null
     } & NodeOptions
   : T extends 'ExtensionNode'
@@ -31,6 +31,7 @@ export type TOpts =
   | TNodeOptions<'BranchNode'>
   | TNodeOptions<'ExtensionNode'>
   | TNodeOptions<'LeafNode'>
+  | TNodeOptions<'ProofNode'>
 
 export type NodeFromOptions<T extends TNodeOptions<NodeType>> = T extends TNodeOptions<'LeafNode'>
   ? LeafNode
@@ -38,6 +39,8 @@ export type NodeFromOptions<T extends TNodeOptions<NodeType>> = T extends TNodeO
   ? BranchNode
   : T extends TNodeOptions<'ExtensionNode'>
   ? ExtensionNode
+  : T extends TNodeOptions<'ProofNode'>
+  ? ProofNode
   : never
 
 export interface NodeInterface<T extends NodeType> {
@@ -49,8 +52,14 @@ export interface NodeInterface<T extends NodeType> {
   rlpEncode(): Uint8Array
   hash(): Uint8Array
   get(rawKey: Uint8Array): Promise<Uint8Array | null>
-  getChildren(): Promise<Map<number, TNode>>
-  update(rawKey: Uint8Array, value: Uint8Array): Promise<TNode>
+  getChildren(): Map<number, TNode>
+  getChild(key?: number): TNode | undefined
+  deleteChild(nibble: Nibble): Promise<TNode>
+  updateChild(newChild: TNode, nibble?: Nibble): TNode
+  updateValue(newValue: Uint8Array | null): Promise<TNode>
+  getValue(): Uint8Array | undefined
+  getType(): NodeType
+  update(value: Uint8Array | null): Promise<TNode>
   delete(rawKey?: Uint8Array): Promise<TNode>
 }
 
@@ -59,15 +68,16 @@ export interface Ileaf extends NodeInterface<'LeafNode'> {
   value: Uint8Array | null
 }
 export interface Ibranch extends NodeInterface<'BranchNode'> {
-  children: TNode[]
+  children: (TNode | undefined)[]
   value: Uint8Array | null
 }
 export interface Iextension extends NodeInterface<'ExtensionNode'> {
-  keyNibbles: Nibble[]
   child: TNode
 }
 
-export type TNode = Ileaf | Ibranch | Iextension | NullNode | ProofNode
+export interface Iproofnode extends NodeInterface<'ProofNode'> {}
+
+export type TNode = Ileaf | Ibranch | Iextension | NullNode | Iproofnode
 
 export type TCreated<T> = T extends NodeInterface<infer R> ? NodeInterface<R> : never
 
@@ -92,6 +102,6 @@ export type TrieOpts = {
   cache?: LRUCache<string, TNode>
 }
 
-export type WalkFilterFunction = (TrieNode: TNode, key: Uint8Array) => boolean
-export type OnFoundFunction = (TrieNode: TNode, key: Uint8Array) => void
+export type WalkFilterFunction = (TrieNode: TNode, key: Uint8Array) => Promise<boolean>
+export type OnFoundFunction = (TrieNode: TNode, key: Uint8Array) => Promise<void>
 export type Nibble = number
