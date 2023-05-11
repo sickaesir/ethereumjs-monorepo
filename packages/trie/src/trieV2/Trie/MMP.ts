@@ -1,6 +1,5 @@
 import { bytesToPrefixedHexString } from '@ethereumjs/util'
 import debug from 'debug'
-import { equalsBytes } from 'ethereum-cryptography/utils'
 
 import { BranchNode, ExtensionNode, LeafNode, NullNode } from '../Node'
 import {
@@ -9,12 +8,12 @@ import {
   getSharedNibbles,
   keyToNibbles,
   nibblesEqual,
-  nibblesToKey,
 } from '../util'
+
+import { fromProof, verifyProof } from './utils'
 
 import type { NodeType, TNode } from '../types'
 import type { WalkResult } from '../util'
-import type { CreateTrieOptions } from './abstractTrie'
 import type { Debugger } from 'debug'
 
 export class Trie {
@@ -24,103 +23,22 @@ export class Trie {
     proof: TNode[],
     d_bug: Debugger = debug('trie')
   ): Promise<Uint8Array | null | false> {
-    d_bug = d_bug.extend('verifyProof')
-    d_bug(`Verifying proof for key:  ${key}`)
-    d_bug.extend('keyNibbles')(keyToNibbles(key))
-    if (!proof.length) {
-      throw new Error('Proof is empty')
-    }
-    let node = proof[0]
-    if (!equalsBytes(rootHash, node.hash())) {
-      throw new Error('Proof root hash does not match expected root hash')
-    }
-    const path = keyToNibbles(key)
-
-    for (let i = 1; i < proof.length; i++) {
-      debug(`Searching child on index ${path[0]}`)
-      const child = node.getChild(path[0]) ?? new NullNode()
-      if (!equalsBytes(child.hash(), proof[i].hash())) {
-        return false
-      }
-      node = child
-      path.shift()
-    }
-
-    if (node instanceof LeafNode) {
-      d_bug.extend('LeafNode')(`Proof verification successful for key: ${key}`)
-      return node.getValue() ?? null
-    } else if (node instanceof NullNode) {
-      d_bug.extend('NullNode')(`null Proof verification successful for key: ${key}`)
-      return null
-    } else if (node instanceof ExtensionNode) {
-      d_bug.extend('ExtensionNode')(`Proof verification successful for key: ${key}`)
-      return node.child.getValue() ?? null
-    } else if (node instanceof BranchNode) {
-      if (path.length === 0) {
-        return node.getValue() ?? null
-      }
-      d_bug.extend('BranchNode')(`Proof verification successful for key: ${key}`)
-      return node.getChild(path[0])?.getValue() ?? null
-    } else {
-      return false
-    }
+    return verifyProof(rootHash, key, proof, d_bug)
   }
   static async fromProof(
     rootHash: Uint8Array,
     proof: TNode[],
     d_bug: Debugger = debug('trie')
   ): Promise<Trie> {
-    d_bug = d_bug.extend('fromProof')
-    d_bug(`Building Trie from proof`)
-    if (!proof.length) {
-      throw new Error('Proof is empty')
-    }
-    let root = proof[0]
-    if (!equalsBytes(rootHash, root.hash())) {
-      throw new Error('Proof root hash does not match expected root hash')
-    }
-    const trie = new Trie(root)
-    for (let i = 1; i < proof.length - 1; i++) {
-      const node = proof[i]
-      const key = nibblesToKey(node.getPartialKey())
-      d_bug(`Inserting node at path: ${key}`)
-      root = await trie._insertAtNode(root, keyToNibbles(key), node.getValue() ?? new Uint8Array())
-    }
-    return trie
+    return fromProof(rootHash, proof, d_bug)
   }
-
   root: TNode
   debug: Debugger
-  constructor(options: CreateTrieOptions) {
-    this.root = options.rootNode ?? new NullNode()
+  constructor(root?: TNode) {
+    this.root = root ?? new NullNode()
     this.debug = debug(`Trie`)
   }
-  async insert(_key: Uint8Array, _value: Uint8Array, debug: Debugger = this.debug): Promise<void> {
-    debug = debug.extend('insert')
-    const keyNibbles = keyToNibbles(_key)
-    debug(`inserting new key/value node`)
-    debug.extend('keyToNibbles')(`${keyNibbles}`)
-    const newNode = await this._insertAtNode(this.root, keyNibbles, _value, debug)
-    this.root = newNode
-    this.debug.extend(`**ROOT**`)(`${bytesToPrefixedHexString(this.root.hash())}`)
-  }
-  async delete(key: Uint8Array, debug: Debugger = this.debug): Promise<void> {
-    debug = debug.extend('delete')
-    const keyNibbles = keyToNibbles(key)
-    debug(`deleting key: ${bytesToPrefixedHexString(key)}`)
-    debug.extend(`keyToNibbles`)(`${keyNibbles}`)
-    const newNode = await this._deleteAtNode(this.root, keyNibbles, debug)
-    this.root = newNode
-    debug.extend('NEW_ROOT')(
-      `${this.root.getType()}: ${bytesToPrefixedHexString(this.root.hash())}`
-    )
-  }
-  public async get(key: Uint8Array, debug: Debugger = this.debug): Promise<Uint8Array | null> {
-    debug = debug.extend('get')
-    const lastNode = await this.getNode(key, debug)
-    return lastNode?.getValue() ?? null
-  }
-  public async getNode(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode | null> {
+  async _getNode(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode | null> {
     debug = debug.extend('get')
     debug(`getting value for key: ${bytesToPrefixedHexString(key)}`)
     debug(`keyToNibbles: ${keyToNibbles(key)}`)
@@ -135,28 +53,6 @@ export class Trie {
       }
     }
     return lastNode
-  }
-  async createProof(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode[]> {
-    debug = debug.extend('createProof')
-    debug(`Creating proof for key: ${key}`)
-    const path = keyToNibbles(key)
-    let node = this.root
-    const proof = []
-
-    while (path.length > 0) {
-      proof.push(node)
-      if (node instanceof LeafNode) {
-        debug('Proof creation successful for key: %O', key)
-        return proof
-      }
-      const child = node.getChild(path[0])
-      if (!child) {
-        return proof
-      }
-      node = child
-      path.shift()
-    }
-    return proof
   }
   async _insertAtNode(
     node: TNode,
@@ -337,7 +233,7 @@ export class Trie {
     return d[_node.getType()]()
   }
 
-  private async _walkTrie(key: Uint8Array, debug: Debugger = this.debug): Promise<WalkResult> {
+  async _walkTrie(key: Uint8Array, debug: Debugger = this.debug): Promise<WalkResult> {
     debug = debug.extend('_walkTrie')
     const keyNibbles = decodeNibbles(key)
     let currentNode: TNode = this.root
@@ -433,27 +329,5 @@ export class Trie {
       }
     }
     return node
-  }
-  async updateFromProof(
-    rootHash: Uint8Array,
-    proof: TNode[],
-    debug: Debugger = this.debug
-  ): Promise<void> {
-    debug = debug.extend('updateFromProof')
-    debug(`Updating Trie from proof`)
-    if (!proof.length) {
-      throw new Error('Proof is empty')
-    }
-    let root = proof[0]
-    if (!equalsBytes(rootHash, root.hash())) {
-      throw new Error('Proof root hash does not match expected root hash')
-    }
-    this.root = root
-    for (let i = 1; i < proof.length; i++) {
-      const node = proof[i]
-      const key = nibblesToKey(node.getPartialKey())
-      debug(`Inserting node at path: ${key}`)
-      root = await this._insertAtNode(root, keyToNibbles(key), node.getValue() ?? new Uint8Array())
-    }
   }
 }
