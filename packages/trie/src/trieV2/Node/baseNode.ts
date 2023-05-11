@@ -53,7 +53,7 @@ export class NullNode extends BaseNode {
     return new Map()
   }
   getChild(_key: number): TNode {
-    throw new Error('Cannot get child of NullNode')
+    return new NullNode()
   }
   getType(): NodeType {
     return 'NullNode'
