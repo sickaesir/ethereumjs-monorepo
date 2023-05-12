@@ -377,6 +377,7 @@ tape('MMPT', async (t) => {
       uniqueValuesFound: uniqueValuesFound.length,
       missingValues: missingValues.length,
     })
+    // 96 percent of values found during walk is current norm
     st.ok(
       uniqueValuesFound.length >= uniqueKeys.length * 0.96,
       `walk trie touched ${(uniqueValuesFound.length * 100) / uniqueKeys.length}% of ${
@@ -386,7 +387,13 @@ tape('MMPT', async (t) => {
     for (const idx of missingValueIdx) {
       const retrievedMissing = await trie.get(keys[idx], d_bug)
       st.deepEqual(retrievedMissing, values[idx], `should find missing value for key ${idx}`)
+      if (!retrievedMissing || !equalsBytes(retrievedMissing, values[idx])) {
+        st.fail(`failed to return correct node and value for key ${idx}`)
+        st.end()
+        return
+      }
     }
+    st.pass(`all ${missingValueIdx.length} missing key/value nodes still found in trie`)
     st.end()
   })
 })
