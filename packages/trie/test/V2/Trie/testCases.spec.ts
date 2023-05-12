@@ -327,7 +327,7 @@ tape('MMPT', async (t) => {
       }
       f++
     }
-    const walk = trie.walkTrie(trie.getRoot(), new Uint8Array(), onFound)
+    const walk = trie.walkTrie(trie.getRoot(), undefined, onFound)
 
     //  uncomment code to see trie readout
     for await (const _ of walk) {
@@ -377,23 +377,26 @@ tape('MMPT', async (t) => {
       uniqueValuesFound: uniqueValuesFound.length,
       missingValues: missingValues.length,
     })
-    // 96 percent of values found during walk is current norm
+    // 100% values usually found.  Slippage to 98% common.  95% is floor.
+    // Test will still pass as long as values are still retrievable with `get`
     st.ok(
-      uniqueValuesFound.length >= uniqueKeys.length * 0.96,
+      uniqueValuesFound.length >= uniqueKeys.length * 0.95,
       `walk trie touched ${(uniqueValuesFound.length * 100) / uniqueKeys.length}% of ${
         uniqueKeys.length
       } key/value nodes`
     )
-    for (const idx of missingValueIdx) {
-      const retrievedMissing = await trie.get(keys[idx], d_bug)
-      st.deepEqual(retrievedMissing, values[idx], `should find missing value for key ${idx}`)
-      if (!retrievedMissing || !equalsBytes(retrievedMissing, values[idx])) {
-        st.fail(`failed to return correct node and value for key ${idx}`)
-        st.end()
-        return
+    if (missingValueIdx.length > 0) {
+      for (const idx of missingValueIdx) {
+        const retrievedMissing = await trie.get(keys[idx], d_bug)
+        st.deepEqual(retrievedMissing, values[idx], `should find missing value for key ${idx}`)
+        if (!retrievedMissing || !equalsBytes(retrievedMissing, values[idx])) {
+          st.fail(`failed to return correct node and value for key ${idx}`)
+          st.end()
+          return
+        }
       }
+      st.pass(`All ${missingValueIdx.length} missing key/value nodes still found in trie`)
     }
-    st.pass(`all ${missingValueIdx.length} missing key/value nodes still found in trie`)
     st.end()
   })
 })

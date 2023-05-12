@@ -60,14 +60,11 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
   }
 
   rlpEncode(): Uint8Array {
-    const childrenRlp: Uint8Array[] = []
-    for (let i = 0; i < 16; i++) {
-      const child = this.children[i]
-      if (child !== undefined) {
-        childrenRlp.push(child.rlpEncode())
-      } else {
-        childrenRlp.push(new NullNode().rlpEncode())
-      }
+    const children = this.getChildren()
+    const childrenRlp: Uint8Array[] = Array.from({ length: 16 }, () => new NullNode().rlpEncode())
+
+    for (const [idx, child] of children.entries()) {
+      childrenRlp[idx] = child.rlpEncode()
     }
     const encodedNode = RLP.encode([...childrenRlp, this.value ?? Uint8Array.from([])])
     return encodedNode
