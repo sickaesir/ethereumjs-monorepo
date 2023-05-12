@@ -337,4 +337,36 @@ export class Trie {
     // one child, there's nothing to clean up and we return the node as is.
     return node
   }
+
+  async *_walkTrieRecursively(
+    node: TNode | null,
+    currentKey: Uint8Array = new Uint8Array(),
+    onFound: OnFoundFunction = async (_trieNode: TNode, _key: Uint8Array) => {},
+    filter: WalkFilterFunction = async (_trieNode: TNode, _key: Uint8Array) => true
+  ): AsyncIterable<TNode> {
+    if (node === null) {
+      return
+    }
+    if (await filter(node, currentKey)) {
+      await onFound(node, currentKey)
+      yield node
+    }
+    switch (node.type) {
+      case 'BranchNode': {
+        for await (const [nibble, childNode] of node.getChildren()) {
+          const nextKey = Uint8Array.from([...currentKey, nibble])
+          yield* this._walkTrieRecursively(childNode, nextKey, onFound, filter)
+        }
+        break
+      }
+      case 'ExtensionNode': {
+        const childNode = await this._getNode(node.child.hash())
+        const nextKey = Uint8Array.from([...currentKey, ...node.keyNibbles])
+        yield* this._walkTrieRecursively(childNode, nextKey, onFound, filter)
+        break
+      }
+      default:
+        break
+    }
+  }
 }
