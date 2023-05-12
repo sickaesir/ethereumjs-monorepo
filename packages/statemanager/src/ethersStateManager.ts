@@ -4,10 +4,15 @@ import { debug } from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import { ethers } from 'ethers'
 
-import { AccountCache, CacheType } from './cache'
+import { AccountCache, CacheType, StorageCache } from './cache'
 
-import type { Proof, StateManager } from '.'
-import type { AccountFields, StorageDump } from './interface'
+import type { Proof } from '.'
+import type {
+  AccessList,
+  AccountFields,
+  EVMStateManagerInterface,
+  StorageDump,
+} from '@ethereumjs/common'
 import type { Address } from '@ethereumjs/util'
 
 const log = debug('statemanager')
@@ -17,10 +22,10 @@ export interface EthersStateManagerOpts {
   blockTag: bigint | 'earliest'
 }
 
-export class EthersStateManager implements StateManager {
+export class EthersStateManager implements EVMStateManagerInterface {
   private provider: ethers.providers.StaticJsonRpcProvider | ethers.providers.JsonRpcProvider
   private contractCache: Map<string, Uint8Array>
-  private storageCache: Map<string, Map<string, Uint8Array>>
+  private storageCache: StorageCache
   private blockTag: string
   _accountCache: AccountCache
 
@@ -36,8 +41,7 @@ export class EthersStateManager implements StateManager {
     this.blockTag = opts.blockTag === 'earliest' ? opts.blockTag : bigIntToHex(opts.blockTag)
 
     this.contractCache = new Map()
-    this.storageCache = new Map()
-
+    this.storageCache = new StorageCache({ size: 10000, type: CacheType.LRU })
     this._accountCache = new AccountCache({ size: 100000, type: CacheType.LRU })
   }
 
@@ -47,7 +51,7 @@ export class EthersStateManager implements StateManager {
       blockTag: BigInt(this.blockTag),
     })
     ;(newState as any).contractCache = new Map(this.contractCache)
-    ;(newState as any).storageCache = new Map(this.storageCache)
+    ;(newState as any).storageCache = new StorageCache({ size: 10000, type: CacheType.LRU })
     ;(newState as any)._accountCache = this._accountCache
     return newState
   }
@@ -109,24 +113,22 @@ export class EthersStateManager implements StateManager {
    */
   async getContractStorage(address: Address, key: Uint8Array): Promise<Uint8Array> {
     // Check storage slot in cache
-    const accountStorage: Map<string, Uint8Array> | undefined = this.storageCache.get(
-      address.toString()
-    )
-    let storage: Uint8Array | string | undefined
-    if (accountStorage !== undefined) {
-      storage = accountStorage.get(bytesToHex(key))
-      if (storage !== undefined) {
-        return storage
-      }
+    if (key.length !== 32) {
+      throw new Error('Storage key must be 32 bytes long')
+    }
+
+    let value = this.storageCache!.get(address, key)
+    if (value !== undefined) {
+      return value
     }
 
     // Retrieve storage slot from provider if not found in cache
-    storage = await this.provider.getStorageAt(
+    const storage = await this.provider.getStorageAt(
       address.toString(),
       bytesToBigInt(key),
       this.blockTag
     )
-    const value = toBytes(storage)
+    value = toBytes(storage)
 
     await this.putContractStorage(address, key, value)
     return value
@@ -142,12 +144,7 @@ export class EthersStateManager implements StateManager {
    * If it is empty or filled with zeros, deletes the value.
    */
   async putContractStorage(address: Address, key: Uint8Array, value: Uint8Array): Promise<void> {
-    let accountStorage = this.storageCache.get(address.toString())
-    if (accountStorage === undefined) {
-      this.storageCache.set(address.toString(), new Map<string, Uint8Array>())
-      accountStorage = this.storageCache.get(address.toString())
-    }
-    accountStorage?.set(bytesToHex(key), value)
+    this.storageCache.put(address, key, value)
   }
 
   /**
@@ -155,7 +152,7 @@ export class EthersStateManager implements StateManager {
    * @param address - Address to clear the storage of
    */
   async clearContractStorage(address: Address): Promise<void> {
-    this.storageCache.delete(address.toString())
+    this.storageCache.clearContractStorage(address)
   }
 
   /**
@@ -166,10 +163,10 @@ export class EthersStateManager implements StateManager {
    * Both are represented as `0x` prefixed hex strings.
    */
   dumpStorage(address: Address): Promise<StorageDump> {
-    const addressStorage = this.storageCache.get(address.toString())
+    const storageMap = this.storageCache._lruCache?.get(address.toString())
     const dump: StorageDump = {}
-    if (addressStorage !== undefined) {
-      for (const slot of addressStorage) {
+    if (storageMap !== undefined) {
+      for (const slot of storageMap) {
         dump[slot[0]] = bytesToHex(slot[1])
       }
     }
@@ -341,6 +338,38 @@ export class EthersStateManager implements StateManager {
    * @deprecated This method is not used by the Ethers State Manager and is a stub required by the State Manager interface
    */
   hasStateRoot = () => {
+    throw new Error('function not implemented')
+  }
+
+  accountIsEmptyOrNonExistent(_address: Address): Promise<boolean> {
+    throw new Error('function not implemented')
+  }
+  getOriginalContractStorage(_address: Address, _key: Uint8Array): Promise<Uint8Array> {
+    throw new Error('function not implemented')
+  }
+  clearWarmedAccounts(): void {}
+  cleanupTouchedAccounts(): Promise<void> {
+    return Promise.resolve()
+  }
+  clearOriginalStorageCache(): void {
+    // throw new Error('function not implemented')
+  }
+  addWarmedAddress(_address: Uint8Array): void {
+    //  throw new Error('function not implemented')
+  }
+  isWarmedAddress(_address: Uint8Array): boolean {
+    throw new Error('function not implemented')
+  }
+  addWarmedStorage(_address: Uint8Array, _slot: Uint8Array): void {
+    //   throw new Error('function not implemented')
+  }
+  isWarmedStorage(_address: Uint8Array, _slot: Uint8Array): boolean {
+    throw new Error('function not implemented')
+  }
+  generateCanonicalGenesis(_initState: any): Promise<void> {
+    return Promise.resolve()
+  }
+  generateAccessList(_addressesRemoved: Address[], _addressesOnlyStorage: Address[]): AccessList {
     throw new Error('function not implemented')
   }
 }

@@ -1,10 +1,12 @@
 import { Block, BlockHeader } from '@ethereumjs/block'
 import { Common, Chain as CommonChain, Hardfork } from '@ethereumjs/common'
-import { BlobEIP4844Transaction, Transaction } from '@ethereumjs/tx'
+import { DefaultStateManager } from '@ethereumjs/statemanager'
+import { BlobEIP4844Transaction, FeeMarketEIP1559Transaction, Transaction } from '@ethereumjs/tx'
 import {
   Account,
   Address,
   blobsToCommitments,
+  blobsToProofs,
   bytesToHex,
   bytesToPrefixedHexString,
   commitmentsToVersionedHashes,
@@ -15,7 +17,6 @@ import {
   randomBytes,
 } from '@ethereumjs/util'
 import { VM } from '@ethereumjs/vm'
-import { VmState } from '@ethereumjs/vm/dist/eei/vmState'
 import * as kzg from 'c-kzg'
 import * as tape from 'tape'
 import * as td from 'testdouble'
@@ -80,11 +81,10 @@ const setup = () => {
 tape('[PendingBlock]', async (t) => {
   const originalValidate = BlockHeader.prototype._consensusFormatValidation
   BlockHeader.prototype._consensusFormatValidation = td.func<any>()
-  td.replace('@ethereumjs/block', { BlockHeader })
+  td.replace<any>('@ethereumjs/block', { BlockHeader })
 
-  const originalSetStateRoot = VmState.prototype.setStateRoot
-  VmState.prototype.setStateRoot = td.func<any>()
-  td.replace('@ethereumjs/vm/dist/vmState', { VmState })
+  const originalSetStateRoot = DefaultStateManager.prototype.setStateRoot
+  DefaultStateManager.prototype.setStateRoot = td.func<any>()
 
   const createTx = (
     from = A,
@@ -142,7 +142,7 @@ tape('[PendingBlock]', async (t) => {
     await setBalance(vm, A.address, BigInt(5000000000000000))
     await setBalance(vm, B.address, BigInt(5000000000000000))
 
-    txA011.common.setHardfork(Hardfork.Merge)
+    txA011.common.setHardfork(Hardfork.Paris)
     await txPool.add(txA011)
     t.equal(txPool.txsInPool, 1, '1 txA011 should be added')
     // skip hardfork validation for ease
@@ -159,7 +159,7 @@ tape('[PendingBlock]', async (t) => {
       'txA011 should be in block'
     )
 
-    txB011.common.setHardfork(Hardfork.Merge)
+    txB011.common.setHardfork(Hardfork.Paris)
     await txPool.add(txB011)
     t.equal(txPool.txsInPool, 2, '1 txB011 should be added')
     const built = await pendingBlock.build(payloadId)
@@ -271,35 +271,70 @@ tape('[PendingBlock]', async (t) => {
     const gethGenesis = require('../../../block/test/testdata/4844-hardfork.json')
     const common = Common.fromGethGenesis(gethGenesis, {
       chain: 'customChain',
-      hardfork: Hardfork.ShardingForkDev,
+      hardfork: Hardfork.Cancun,
     })
     const { txPool } = setup()
+
     const blobs = getBlobs('hello world')
     const commitments = blobsToCommitments(blobs)
     const versionedHashes = commitmentsToVersionedHashes(commitments)
+    const proofs = blobsToProofs(blobs, commitments)
 
-    const txA01 = BlobEIP4844Transaction.fromTxData(
+    // Create 3 txs with 2 blobs each so that only 2 of them can be included in a build
+    for (let x = 0; x <= 2; x++) {
+      const txA01 = BlobEIP4844Transaction.fromTxData(
+        {
+          versionedHashes,
+          blobs: [...blobs, ...blobs],
+          kzgCommitments: [...commitments, ...commitments],
+          kzgProofs: [...proofs, ...proofs],
+          maxFeePerDataGas: 100000000n,
+          gasLimit: 0xffffffn,
+          maxFeePerGas: 1000000000n,
+          maxPriorityFeePerGas: 100000000n,
+          to: randomBytes(20),
+          nonce: BigInt(x),
+        },
+        { common }
+      ).sign(A.privateKey)
+      await txPool.add(txA01)
+    }
+
+    // Add one other normal tx for nonce 3 which should also be not included in the build
+    const txNorm = FeeMarketEIP1559Transaction.fromTxData(
       {
-        versionedHashes,
-        blobs,
-        kzgCommitments: commitments,
-        maxFeePerDataGas: 100000000n,
         gasLimit: 0xffffffn,
         maxFeePerGas: 1000000000n,
         maxPriorityFeePerGas: 100000000n,
         to: randomBytes(20),
+        nonce: BigInt(3),
       },
       { common }
     ).sign(A.privateKey)
-    await txPool.add(txA01)
+    await txPool.add(txNorm)
+    st.equal(txPool.txsInPool, 4, '4 txs should still be in the pool')
+
     const pendingBlock = new PendingBlock({ config, txPool })
     const vm = await VM.create({ common })
-    await setBalance(vm, A.address, BigInt(5000000000000000))
+    await setBalance(vm, A.address, BigInt(500000000000000000))
     const parentBlock = await vm.blockchain.getCanonicalHeadBlock!()
+    // stub the vm's common set hf to do nothing but stay in cancun
+    vm._common.setHardforkByBlockNumber = (_a: bigint, _b?: bigint, _c?: bigint) => {
+      return vm._common.hardfork()
+    }
     const payloadId = await pendingBlock.start(vm, parentBlock)
-    await pendingBlock.build(payloadId)
-    const pendingBlob = pendingBlock.blobBundles.get(bytesToPrefixedHexString(payloadId))?.blobs[0]
+    const [block, _receipts, _value, blobsBundles] = (await pendingBlock.build(payloadId)) ?? []
+
+    st.ok(block !== undefined && blobsBundles !== undefined)
+    st.equal(block!.transactions.length, 2, 'Only two blob txs should be included')
+    st.equal(blobsBundles!.blobs.length, 4, 'maximum 4 blobs should be included')
+    st.equal(blobsBundles!.commitments.length, 4, 'maximum 4 commitments should be included')
+    st.equal(blobsBundles!.proofs.length, 4, 'maximum 4 proofs should be included')
+
+    const pendingBlob = blobsBundles!.blobs[0]
     st.ok(pendingBlob !== undefined && equalsBytes(pendingBlob, blobs[0]))
+    const blobProof = blobsBundles!.proofs[0]
+    st.ok(blobProof !== undefined && equalsBytes(blobProof, proofs[0]))
     st.end()
   })
   t.test('should reset td', (st) => {
@@ -308,7 +343,7 @@ tape('[PendingBlock]', async (t) => {
     // mocking indirect dependencies is not properly supported, but it works for us in this file,
     // so we will replace the original functions to avoid issues in other tests that come after
     BlockHeader.prototype._consensusFormatValidation = originalValidate
-    VmState.prototype.setStateRoot = originalSetStateRoot
+    DefaultStateManager.prototype.setStateRoot = originalSetStateRoot
 
     st.end()
   })

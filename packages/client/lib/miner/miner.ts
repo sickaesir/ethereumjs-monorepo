@@ -5,6 +5,7 @@ import { bytesToPrefixedHexString } from '@ethereumjs/util'
 import { bytesToHex, equalsBytes } from 'ethereum-cryptography/utils'
 import { MemoryLevel } from 'memory-level'
 
+import { LevelDB } from '../execution/level'
 import { Event } from '../types'
 
 import type { Config } from '../config'
@@ -65,7 +66,7 @@ export class Miner {
       ((this.config.chainCommon.consensusConfig() as CliqueConfig).period ?? this.DEFAULT_PERIOD) *
       1000 // defined in ms for setTimeout use
     if (this.config.chainCommon.consensusType() === ConsensusType.ProofOfWork) {
-      this.ethash = new Ethash(new MemoryLevel())
+      this.ethash = new Ethash(new LevelDB(new MemoryLevel()) as any)
     }
   }
 
@@ -93,7 +94,7 @@ export class Miner {
       this.service.chain.headers.td,
       undefined
     )
-    if (this.config.chainCommon.hardforkGteHardfork(nextBlockHf, Hardfork.Merge)) {
+    if (this.config.chainCommon.hardforkGteHardfork(nextBlockHf, Hardfork.Paris)) {
       this.config.logger.info('Miner: reached merge hardfork - stopping')
       this.stop()
       return
@@ -237,7 +238,7 @@ export class Miner {
 
     // Set the state root to ensure the resulting state
     // is based on the parent block's state
-    await vmCopy.eei.setStateRoot(parentBlock.header.stateRoot)
+    await vmCopy.stateManager.setStateRoot(parentBlock.header.stateRoot)
 
     let difficulty
     let cliqueSigner
@@ -293,7 +294,7 @@ export class Miner {
       },
     })
 
-    const txs = await this.service.txPool.txsByPriceAndNonce(vmCopy, baseFeePerGas)
+    const txs = await this.service.txPool.txsByPriceAndNonce(vmCopy, { baseFee: baseFeePerGas })
     this.config.logger.info(
       `Miner: Assembling block from ${txs.length} eligible txs ${
         typeof baseFeePerGas === 'bigint' && baseFeePerGas !== BigInt(0)

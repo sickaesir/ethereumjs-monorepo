@@ -1,7 +1,16 @@
-import { RLP_EMPTY_STRING, bytesToHex, bytesToUtf8, equalsBytes } from '@ethereumjs/util'
+import {
+  KeyEncoding,
+  MapDB,
+  RLP_EMPTY_STRING,
+  ValueEncoding,
+  bytesToHex,
+  bytesToUtf8,
+  equalsBytes,
+} from '@ethereumjs/util'
 import { keccak256 } from 'ethereum-cryptography/keccak'
+import { hexToBytes } from 'ethereum-cryptography/utils'
 
-import { CheckpointDB, MapDB } from '../db'
+import { CheckpointDB } from '../db'
 import { verifyRangeProof } from '../proof/range'
 import { ROOT_DB_KEY } from '../types'
 import { Lock } from '../util/lock'
@@ -12,17 +21,15 @@ import { WalkController } from '../util/walkController'
 import { BranchNode, ExtensionNode, LeafNode, decodeNode, decodeRawNode, isRawNode } from './node'
 
 import type {
-  BatchDBOp,
-  DB,
   EmbeddedNode,
   FoundNodeFunction,
   Nibbles,
   Proof,
-  PutBatch,
   TrieNode,
   TrieOpts,
   TrieOptsWithDefaults,
 } from '../types'
+import type { BatchDBOp, DB, PutBatch } from '@ethereumjs/util'
 
 interface Path {
   node: TrieNode | null
@@ -39,6 +46,7 @@ export class Trie {
     useKeyHashingFunction: keccak256,
     useRootPersistence: false,
     useNodePruning: false,
+    cacheSize: 0,
   }
 
   /** The root for an empty trie */
@@ -61,7 +69,7 @@ export class Trie {
       this._opts = { ...this._opts, ...opts }
     }
 
-    this.database(opts?.db ?? new MapDB())
+    this.database(opts?.db ?? new MapDB<string, string>())
 
     this.EMPTY_TRIE_ROOT = this.hash(RLP_EMPTY_STRING)
     this._hashLen = this.EMPTY_TRIE_ROOT.length
@@ -81,22 +89,29 @@ export class Trie {
 
     if (opts?.db !== undefined && opts?.useRootPersistence === true) {
       if (opts?.root === undefined) {
-        opts.root = (await opts?.db.get(key)) ?? undefined
+        const rootHex = await opts?.db.get(bytesToHex(key), {
+          keyEncoding: KeyEncoding.String,
+          valueEncoding: ValueEncoding.String,
+        })
+        opts.root = rootHex !== undefined ? hexToBytes(rootHex) : undefined
       } else {
-        await opts?.db.put(key, opts.root)
+        await opts?.db.put(bytesToHex(key), bytesToHex(opts.root), {
+          keyEncoding: KeyEncoding.String,
+          valueEncoding: ValueEncoding.String,
+        })
       }
     }
 
     return new Trie(opts)
   }
 
-  database(db?: DB) {
+  database(db?: DB<string, string>) {
     if (db !== undefined) {
       if (db instanceof CheckpointDB) {
         throw new Error('Cannot pass in an instance of CheckpointDB')
       }
 
-      this._db = new CheckpointDB(db)
+      this._db = new CheckpointDB({ db, cacheSize: this._opts.cacheSize })
     }
 
     return this._db
@@ -192,6 +207,9 @@ export class Trie {
             return {
               type: 'del',
               key: e,
+              opts: {
+                keyEncoding: KeyEncoding.Bytes,
+              },
             }
           })
         }
@@ -228,6 +246,9 @@ export class Trie {
         return {
           type: 'del',
           key: e,
+          opts: {
+            keyEncoding: KeyEncoding.Bytes,
+          },
         }
       })
     }
@@ -857,6 +878,14 @@ export class Trie {
 
   /**
    * Returns a copy of the underlying trie.
+   *
+   * Note on db: the copy will create a reference to the
+   * same underlying database.
+   *
+   * Note on cache: for memory reasons a copy will not
+   * recreate a new LRU cache but initialize with cache
+   * being deactivated.
+   *
    * @param includeCheckpoints - If true and during a checkpoint, the copy will contain the checkpointing metadata and will use the same scratch as underlying db.
    */
   copy(includeCheckpoints = true): Trie {
@@ -864,6 +893,7 @@ export class Trie {
       ...this._opts,
       db: this._db.db.copy(),
       root: this.root(),
+      cacheSize: 0,
     })
     if (includeCheckpoints && this.hasCheckpoints()) {
       trie._db.setCheckpoints(this._db.checkpoints)

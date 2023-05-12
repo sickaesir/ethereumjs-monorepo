@@ -22,6 +22,7 @@ import type { Chain } from '../../blockchain'
 import type { EthereumClient } from '../../client'
 import type { Config } from '../../config'
 import type { VMExecution } from '../../execution'
+import type { BlobsBundle } from '../../miner'
 import type { FullEthereumService } from '../../service'
 import type { HeaderData } from '@ethereumjs/block'
 import type { VM } from '@ethereumjs/vm'
@@ -109,9 +110,9 @@ type TransitionConfigurationV1 = {
 }
 
 type BlobsBundleV1 = {
-  blockHash: string
-  kzgs: Bytes48[]
+  commitments: Bytes48[]
   blobs: Blob[]
+  proofs: Bytes48[]
 }
 
 type ExecutionPayloadBodyV1 = {
@@ -169,12 +170,19 @@ const payloadAttributesFieldValidatorsV2 = {
 /**
  * Formats a block to {@link ExecutionPayloadV1}.
  */
-export const blockToExecutionPayload = (block: Block, value: bigint) => {
+export const blockToExecutionPayload = (block: Block, value: bigint, bundle?: BlobsBundle) => {
   const blockJson = block.toJSON()
   const header = blockJson.header!
   const transactions =
     block.transactions.map((tx) => bytesToPrefixedHexString(tx.serialize())) ?? []
   const withdrawalsArr = blockJson.withdrawals ? { withdrawals: blockJson.withdrawals } : {}
+  const blobsBundle: BlobsBundleV1 | undefined = bundle
+    ? {
+        commitments: bundle.commitments.map(bytesToPrefixedHexString),
+        blobs: bundle.blobs.map(bytesToPrefixedHexString),
+        proofs: bundle.proofs.map(bytesToPrefixedHexString),
+      }
+    : undefined
 
   const executionPayload: ExecutionPayload = {
     blockNumber: header.number!,
@@ -194,7 +202,7 @@ export const blockToExecutionPayload = (block: Block, value: bigint) => {
     transactions,
     ...withdrawalsArr,
   }
-  return { executionPayload, blockValue: bigIntToHex(value) }
+  return { executionPayload, blockValue: bigIntToHex(value), blobsBundle }
 }
 
 /**
@@ -248,7 +256,7 @@ const validBlock = async (hash: Uint8Array, chain: Chain): Promise<Block | null>
  * Validates that the block satisfies post-merge conditions.
  */
 const validateTerminalBlock = async (block: Block, chain: Chain): Promise<boolean> => {
-  const ttd = chain.config.chainCommon.hardforkTTD(Hardfork.Merge)
+  const ttd = chain.config.chainCommon.hardforkTTD(Hardfork.Paris)
   if (ttd === null) return false
   const blockTd = await chain.getTd(block.hash(), block.header.number)
 
@@ -281,7 +289,7 @@ const assembleBlock = async (
   const common = config.chainCommon.copy()
 
   // This is a post merge block, so set its common accordingly
-  const ttd = common.hardforkTTD(Hardfork.Merge)
+  const ttd = common.hardforkTTD(Hardfork.Paris)
   common.setHardforkByBlockNumber(number, ttd !== null ? ttd : undefined, timestamp)
 
   const txs = []
@@ -474,11 +482,6 @@ export class Engine {
       () => this.connectionManager.updateStatus()
     )
 
-    this.getBlobsBundleV1 = cmMiddleware(
-      middleware(this.getBlobsBundleV1.bind(this), 1, [[validators.bytes8]]),
-      () => this.connectionManager.updateStatus()
-    )
-
     this.exchangeCapabilities = cmMiddleware(
       middleware(this.exchangeCapabilities.bind(this), 0, []),
       () => this.connectionManager.updateStatus()
@@ -568,7 +571,7 @@ export class Engine {
 
     try {
       const parent = await this.chain.getBlock(hexStringToBytes(parentHash))
-      if (!parent._common.gteHardfork(Hardfork.Merge)) {
+      if (!parent._common.gteHardfork(Hardfork.Paris)) {
         const validTerminalBlock = await validateTerminalBlock(parent, this.chain)
         if (!validTerminalBlock) {
           const response = {
@@ -679,9 +682,7 @@ export class Engine {
     params: [ExecutionPayloadV3 | ExecutionPayloadV2 | ExecutionPayloadV1]
   ): Promise<PayloadStatusV1> {
     const shanghaiTimestamp = this.chain.config.chainCommon.hardforkTimestamp(Hardfork.Shanghai)
-    const eip4844Timestamp = this.chain.config.chainCommon.hardforkTimestamp(
-      Hardfork.ShardingForkDev
-    )
+    const eip4844Timestamp = this.chain.config.chainCommon.hardforkTimestamp(Hardfork.Cancun)
     if (shanghaiTimestamp === null || parseInt(params[0].timestamp) < shanghaiTimestamp) {
       if ('withdrawals' in params[0]) {
         throw {
@@ -804,7 +805,7 @@ export class Engine {
     // Only validate this as terminal block if this block's difficulty is non-zero,
     // else this is a PoS block but its hardfork could be indeterminable if the skeleton
     // is not yet connected.
-    if (!headBlock._common.gteHardfork(Hardfork.Merge) && headBlock.header.difficulty > BigInt(0)) {
+    if (!headBlock._common.gteHardfork(Hardfork.Paris) && headBlock.header.difficulty > BigInt(0)) {
       const validTerminalBlock = await validateTerminalBlock(headBlock, this.chain)
       if (!validTerminalBlock) {
         const response = {
@@ -1002,9 +1003,9 @@ export class Engine {
       }
       // The third arg returned is the minerValue which we will use to
       // value the block
-      const [block, receipts, value] = built
+      const [block, receipts, value, blobs] = built
       await this.execution.runWithoutSetHead({ block }, receipts)
-      return blockToExecutionPayload(block, value)
+      return blockToExecutionPayload(block, value, blobs)
     } catch (error: any) {
       if (error === EngineError.UnknownPayload) throw error
       throw {
@@ -1037,7 +1038,7 @@ export class Engine {
     params: [TransitionConfigurationV1]
   ): Promise<TransitionConfigurationV1> {
     const { terminalTotalDifficulty, terminalBlockHash, terminalBlockNumber } = params[0]
-    const ttd = this.chain.config.chainCommon.hardforkTTD(Hardfork.Merge)
+    const ttd = this.chain.config.chainCommon.hardforkTTD(Hardfork.Paris)
     if (ttd === undefined || ttd === null) {
       throw {
         code: INTERNAL_ERROR,
@@ -1055,26 +1056,6 @@ export class Engine {
     // Note: our client does not yet support block whitelisting (terminalBlockHash/terminalBlockNumber)
     // since we are not yet fast enough to run along tip-of-chain mainnet execution
     return { terminalTotalDifficulty, terminalBlockHash, terminalBlockNumber }
-  }
-
-  /**
-   *
-   * @param params a payloadId for a pending block
-   * @returns a BlobsBundle consisting of the blockhash, the blobs, and the corresponding kzg commitments
-   */
-  private async getBlobsBundleV1(params: [Bytes8]): Promise<BlobsBundleV1> {
-    const payloadId = params[0]
-
-    const bundle = this.pendingBlock.blobBundles.get(payloadId)
-    if (bundle === undefined) {
-      throw EngineError.UnknownPayload
-    }
-
-    return {
-      blockHash: bundle.blockHash,
-      kzgs: bundle.kzgCommitments.map(bytesToPrefixedHexString),
-      blobs: bundle.blobs.map(bytesToPrefixedHexString),
-    }
   }
 
   /**

@@ -20,8 +20,8 @@ import {
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import { bytesToHex, equalsBytes, hexToBytes } from 'ethereum-cryptography/utils'
 
-import type { VmState } from '../src/eei/vmState'
 import type { BlockOptions } from '@ethereumjs/block'
+import type { EVMStateManagerInterface } from '@ethereumjs/common'
 import type { TxOptions } from '@ethereumjs/tx'
 import type * as tape from 'tape'
 
@@ -305,7 +305,7 @@ export function makeBlockHeader(data: any, opts?: BlockOptions) {
       headerData['baseFeePerGas'] = parentBlockHeader.calcNextBaseFee()
     }
   }
-  if (opts?.common && opts.common.gteHardfork('merge')) {
+  if (opts?.common && opts.common.gteHardfork('paris')) {
     headerData['mixHash'] = currentRandom
     headerData['difficulty'] = 0
   }
@@ -328,7 +328,7 @@ export function makeBlockFromEnv(env: any, opts?: BlockOptions): Block {
  * @param state - the state DB/trie
  * @param testData - JSON from tests repo
  */
-export async function setupPreConditions(state: VmState, testData: any) {
+export async function setupPreConditions(state: EVMStateManagerInterface, testData: any) {
   await state.checkpoint()
   for (const addressStr of Object.keys(testData.pre)) {
     const { nonce, balance, code, storage } = testData.pre[addressStr]

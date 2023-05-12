@@ -1,14 +1,12 @@
 import { Block } from '@ethereumjs/block'
 import { Blockchain } from '@ethereumjs/blockchain'
-import { ConsensusAlgorithm, Hardfork } from '@ethereumjs/common'
+import { ConsensusAlgorithm } from '@ethereumjs/common'
 import { RLP } from '@ethereumjs/rlp'
 import { DefaultStateManager } from '@ethereumjs/statemanager'
 import { Trie } from '@ethereumjs/trie'
 import { TransactionFactory } from '@ethereumjs/tx'
-import { bytesToBigInt, isHexPrefixed, stripHexPrefix, toBytes } from '@ethereumjs/util'
+import { MapDB, bytesToBigInt, isHexPrefixed, stripHexPrefix, toBytes } from '@ethereumjs/util'
 import { bytesToHex, hexToBytes } from 'ethereum-cryptography/utils'
-import { Level } from 'level'
-import { MemoryLevel } from 'memory-level'
 
 import { setupPreConditions, verifyPostConditions } from '../../util'
 
@@ -25,13 +23,6 @@ function formatBlockHeader(data: any) {
 }
 
 export async function runBlockchainTest(options: any, testData: any, t: tape.Test) {
-  if (
-    options.common.hardfork() === Hardfork.Homestead &&
-    testData._info.source.includes('ShanghaiLove') === true
-  ) {
-    t.comment('temporarily skipping ShanghaiLove test on Homestead, see issue 2406')
-    return
-  }
   // ensure that the test data is the right fork data
   if (testData.network !== options.forkConfigTestSuite) {
     t.comment(`skipping test: no data available for ${options.forkConfigTestSuite}`)
@@ -41,14 +32,15 @@ export async function runBlockchainTest(options: any, testData: any, t: tape.Tes
   // fix for BlockchainTests/GeneralStateTests/stRandom/*
   testData.lastblockhash = stripHexPrefix(testData.lastblockhash)
 
-  let cacheDB = new Level('./.cachedb')
+  let common = options.common.copy() as Common
+  common.setHardforkByBlockNumber(0)
+
+  let cacheDB = new MapDB()
   let state = new Trie({ useKeyHashing: true })
   let stateManager = new DefaultStateManager({
     trie: state,
+    common,
   })
-
-  let common = options.common.copy() as Common
-  common.setHardforkByBlockNumber(0)
 
   let validatePow = false
   // Only run with block validation when sealEngine present in test file
@@ -72,7 +64,6 @@ export async function runBlockchainTest(options: any, testData: any, t: tape.Tes
   }
 
   let blockchain = await Blockchain.create({
-    db: new MemoryLevel(),
     common,
     validateBlocks: true,
     validateConsensus: validatePow,
@@ -100,7 +91,7 @@ export async function runBlockchainTest(options: any, testData: any, t: tape.Tes
   })
 
   // set up pre-state
-  await setupPreConditions(vm.eei, testData)
+  await setupPreConditions(vm.stateManager, testData)
 
   t.deepEquals(vm.stateManager._trie.root(), genesisBlock.header.stateRoot, 'correct pre stateRoot')
 
@@ -221,7 +212,7 @@ export async function runBlockchainTest(options: any, testData: any, t: tape.Tes
         throw e
       }
 
-      await cacheDB.close()
+      //  await cacheDB._leveldb.close()
 
       if (expectException !== false) {
         t.fail(`expected exception but test did not throw an exception: ${expectException}`)
@@ -242,7 +233,7 @@ export async function runBlockchainTest(options: any, testData: any, t: tape.Tes
   const end = Date.now()
   const timeSpent = `${(end - begin) / 1000} secs`
   t.comment(`Time: ${timeSpent}`)
-  await cacheDB.close()
+  // await cacheDB._leveldb.close()
 
   // @ts-ignore Explicitly delete objects for memory optimization (early GC)
   common = blockchain = state = stateManager = vm = cacheDB = null // eslint-disable-line

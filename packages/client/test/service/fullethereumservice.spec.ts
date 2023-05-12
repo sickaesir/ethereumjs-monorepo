@@ -23,14 +23,14 @@ tape('[FullEthereumService]', async (t) => {
   PeerPool.prototype.close = td.func<any>()
   PeerPool.prototype.start = td.func<any>()
   PeerPool.prototype.stop = td.func<any>()
-  td.replace('../../lib/net/peerpool', { PeerPool })
+  td.replace<any>('../../lib/net/peerpool', { PeerPool })
   const MockChain = td.constructor([] as any)
   MockChain.prototype.open = td.func<any>()
-  td.replace('../../lib/blockchain', { Chain: MockChain })
+  td.replace<any>('../../lib/blockchain', { Chain: MockChain })
   const EthProtocol = td.constructor([] as any)
   const LesProtocol = td.constructor([] as any)
-  td.replace('../../lib/net/protocol/ethprotocol', { EthProtocol })
-  td.replace('../../lib/net/protocol/lesprotocol', { LesProtocol })
+  td.replace<any>('../../lib/net/protocol/ethprotocol', { EthProtocol })
+  td.replace<any>('../../lib/net/protocol/lesprotocol', { LesProtocol })
   class FullSynchronizer {
     start() {}
     stop() {}
@@ -55,14 +55,14 @@ tape('[FullEthereumService]', async (t) => {
   BeaconSynchronizer.prototype.stop = td.func<any>()
   BeaconSynchronizer.prototype.open = td.func<any>()
   BeaconSynchronizer.prototype.close = td.func<any>()
-  td.replace('../../lib/sync', { FullSynchronizer, BeaconSynchronizer })
+  td.replace<any>('../../lib/sync', { FullSynchronizer, BeaconSynchronizer })
 
   class Block {
     static fromValuesArray() {
       return {}
     }
   }
-  td.replace('@ethereumjs/block', { Block })
+  td.replace<any>('@ethereumjs/block', { Block })
   const { FullEthereumService } = await import('../../lib/service/fullethereumservice')
 
   t.test('should initialize correctly', async (t) => {
@@ -100,7 +100,7 @@ tape('[FullEthereumService]', async (t) => {
     const chain = await Chain.create({ config })
     const service = new FullEthereumService({ config, chain })
     await service.open()
-    td.verify(service.synchronizer.open())
+    td.verify(service.synchronizer!.open())
     td.verify(server.addProtocols(td.matchers.anything()))
     service.config.events.on(Event.SYNC_SYNCHRONIZED, () => t.pass('synchronized'))
     service.config.events.on(Event.SYNC_ERROR, (err) => {
@@ -122,10 +122,10 @@ tape('[FullEthereumService]', async (t) => {
     const service = new FullEthereumService({ config, chain })
 
     await service.start()
-    td.verify(service.synchronizer.start())
+    td.verify(service.synchronizer!.start())
     t.notOk(await service.start(), 'already started')
     await service.stop()
-    td.verify(service.synchronizer.stop())
+    td.verify(service.synchronizer!.stop())
     t.notOk(await service.stop(), 'already stopped')
     t.end()
   })
@@ -209,7 +209,7 @@ tape('[FullEthereumService]', async (t) => {
 
   t.test('should ban peer for sending NewBlock/NewBlockHashes after merge', async (t) => {
     t.plan(2)
-    const common = new Common({ chain: 'mainnet', hardfork: Hardfork.Merge })
+    const common = new Common({ chain: 'mainnet', hardfork: Hardfork.Paris })
     const config = new Config({ common, transports: [], accountCache: 10000, storageCache: 1000 })
     const chain = await Chain.create({ config })
     const service = new FullEthereumService({ config, chain })

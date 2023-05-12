@@ -30,7 +30,7 @@ tape('[Common]: Timestamp Hardfork logic', function (t: tape.Test) {
 
   t.test('schedule sharding on shanghai-time', function (st: tape.Test) {
     const config = Object.assign({}, timestampJson.config, {
-      shardingForkTime: timestampJson.config.shanghaiTime,
+      cancunTime: timestampJson.config.shanghaiTime,
     })
     const modifiedJson = Object.assign({}, timestampJson, { config })
     const c = Common.fromGethGenesis(modifiedJson, {
@@ -52,7 +52,7 @@ tape('[Common]: Timestamp Hardfork logic', function (t: tape.Test) {
 
   t.test('schedule sharding post shanghai-time', function (st: tape.Test) {
     const config = Object.assign({}, timestampJson.config, {
-      shardingForkTime: timestampJson.config.shanghaiTime + 1000,
+      cancunTime: timestampJson.config.shanghaiTime + 1000,
     })
     const modifiedJson = Object.assign({}, timestampJson, { config })
     const c = Common.fromGethGenesis(modifiedJson, {
@@ -80,7 +80,7 @@ tape('[Common]: Timestamp Hardfork logic', function (t: tape.Test) {
   t.test('forkHash', function (st) {
     const mainnet = new Common({ chain: Chain.Mainnet })
     const hfs = mainnet.hardforks()
-    const mergeIndex = hfs.findIndex((hf) => hf.name === Hardfork.Merge)
+    const mergeIndex = hfs.findIndex((hf) => hf.name === Hardfork.Paris)
     const hardforks = hfs.slice(0, mergeIndex + 1).concat([
       // Add these hardforks as specified here:
       //   https://github.com/ethereum/EIPs/pull/6122/files
@@ -125,7 +125,7 @@ tape('[Common]: Timestamp Hardfork logic', function (t: tape.Test) {
   t.test('setForkHashes', function (st) {
     const mainnet = new Common({ chain: Chain.Mainnet })
     const hfs = mainnet.hardforks()
-    const mergeIndex = hfs.findIndex((hf) => hf.name === Hardfork.Merge)
+    const mergeIndex = hfs.findIndex((hf) => hf.name === Hardfork.Paris)
     const hardforks = hfs.slice(0, mergeIndex + 1).concat([
       // Add these hardforks as specified here:
       //   https://github.com/ethereum/EIPs/pull/6122/files

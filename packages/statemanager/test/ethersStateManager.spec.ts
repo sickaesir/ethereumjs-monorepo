@@ -11,7 +11,8 @@ import {
   utf8ToBytes,
 } from '@ethereumjs/util'
 import { VM } from '@ethereumjs/vm'
-import { BaseProvider, JsonRpcProvider, StaticJsonRpcProvider } from '@ethersproject/providers'
+import { BaseProvider, StaticJsonRpcProvider } from '@ethersproject/providers'
+import { ethers } from 'ethers'
 import * as tape from 'tape'
 
 import { EthersStateManager } from '../src/ethersStateManager'
@@ -36,7 +37,7 @@ tape('Ethers State Manager initialization tests', (t) => {
   state = new EthersStateManager({ provider, blockTag: 1n })
   t.equal((state as any).blockTag, '0x1', 'State Manager instantiated with predefined blocktag')
 
-  state = new EthersStateManager({ provider: 'http://localhost:8545', blockTag: 1n })
+  state = new EthersStateManager({ provider: 'https://google.com', blockTag: 1n })
   t.ok(state instanceof EthersStateManager, 'was able to instantiate state manager with valid url')
 
   const invalidProvider = new BaseProvider('mainnet')
@@ -145,7 +146,7 @@ tape('Ethers State Manager API tests', async (t) => {
     t.ok(await state.accountExists(vitalikDotEth), 'account should not exist after being deleted')
 
     try {
-      await Block.fromEthersProvider(provider, 'fakeBlockTag', {} as any)
+      await Block.fromJsonRpcProvider(provider, 'fakeBlockTag', {} as any)
       t.fail('should have thrown')
     } catch (err: any) {
       t.ok(
@@ -182,13 +183,13 @@ tape('runTx custom transaction test', async (t) => {
     // The `MockProvider` is not able to load JSON files dynamically in browser so skipped in browser tests
     t.end()
   } else {
-    const common = new Common({ chain: Chain.Mainnet })
+    const common = new Common({ chain: Chain.Mainnet, hardfork: Hardfork.London })
     const provider =
       process.env.PROVIDER !== undefined
         ? new StaticJsonRpcProvider(process.env.PROVIDER, 1)
         : new MockProvider()
     const state = new EthersStateManager({ provider, blockTag: 1n })
-    const vm = await VM.create({ common, stateManager: state })
+    const vm = await VM.create({ common, stateManager: <any>state }) // TODO fix the type DefaultStateManager back to StateManagerInterface in VM
 
     const vitalikDotEth = Address.fromString('0xd8da6bf26964af9d7eed9e03e53415d37aa96045')
     const privateKey = hexStringToBytes(
@@ -219,19 +220,19 @@ tape('runTx test: replay mainnet transactions', async (t) => {
 
     const provider =
       process.env.PROVIDER !== undefined
-        ? new JsonRpcProvider(process.env.PROVIDER)
+        ? new ethers.providers.JsonRpcProvider(process.env.PROVIDER)
         : new MockProvider()
 
     const blockTag = 15496077n
     common.setHardforkByBlockNumber(blockTag)
-    const txHash = '0xed1960aa7d0d7b567c946d94331dddb37a1c67f51f30bf51f256ea40db88cfb0'
-    const tx = await TransactionFactory.fromEthersProvider(provider, txHash, { common })
+    const txData = require('./testdata/providerData/transactions/0xed1960aa7d0d7b567c946d94331dddb37a1c67f51f30bf51f256ea40db88cfb0.json')
+    const tx = await TransactionFactory.fromRPCTx(txData, { common })
     const state = new EthersStateManager({
       provider,
       // Set the state manager to look at the state of the chain before the block has been executed
       blockTag: blockTag - 1n,
     })
-    const vm = await VM.create({ common, stateManager: state })
+    const vm = await VM.create({ common, stateManager: <any>state })
     const res = await vm.runTx({ tx })
     t.equal(res.totalGasSpent, 21000n, 'calculated correct total gas spent for simple transfer')
     t.end()
@@ -246,7 +247,7 @@ tape('runBlock test', async (t) => {
     const common = new Common({ chain: Chain.Mainnet, hardfork: Hardfork.Chainstart })
     const provider =
       process.env.PROVIDER !== undefined
-        ? new JsonRpcProvider(process.env.PROVIDER)
+        ? new ethers.providers.JsonRpcProvider(process.env.PROVIDER)
         : new MockProvider()
     const blockTag = 500000n
     const state = new EthersStateManager({
@@ -260,7 +261,8 @@ tape('runBlock test', async (t) => {
     common.setHardforkByBlockNumber(blockTag - 1n)
 
     const vm = await VM.create({ common, stateManager: state })
-    const block = await Block.fromEthersProvider(provider, blockTag, { common })
+    const blockData = require('./testdata/providerData/blocks/block0x7a120.json')
+    const block = Block.fromRPC(blockData, [], { common })
     try {
       const res = await vm.runBlock({
         block,

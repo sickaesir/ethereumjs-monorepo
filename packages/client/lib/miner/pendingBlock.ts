@@ -1,4 +1,3 @@
-import { BlockHeader } from '@ethereumjs/block'
 import { BlobEIP4844Transaction } from '@ethereumjs/tx'
 import {
   TypeOutput,
@@ -33,10 +32,10 @@ interface PendingBlockOpts {
   skipHardForkValidation?: boolean
 }
 
-interface BlobBundle {
-  blockHash: string
+export interface BlobsBundle {
   blobs: Uint8Array[]
-  kzgCommitments: Uint8Array[]
+  commitments: Uint8Array[]
+  proofs: Uint8Array[]
 }
 /**
  * In the future this class should build a pending block by keeping the
@@ -54,7 +53,7 @@ export class PendingBlock {
   txPool: TxPool
 
   pendingPayloads: Map<string, BlockBuilder> = new Map()
-  blobBundles: Map<string, BlobBundle> = new Map()
+  blobsBundles: Map<string, BlobsBundle> = new Map()
 
   private skipHardForkValidation?: boolean
 
@@ -113,7 +112,7 @@ export class PendingBlock {
       return payloadIdBytes
     }
 
-    // Prune the builders and blobbundles
+    // Prune the builders and blobsbundles
     this.pruneSetToMax(MAX_PAYLOAD_CACHE)
 
     if (typeof vm.blockchain.getTotalDifficulty !== 'function') {
@@ -129,7 +128,7 @@ export class PendingBlock {
 
     // Set the state root to ensure the resulting state
     // is based on the parent block's state
-    await vm.eei.setStateRoot(parentBlock.header.stateRoot)
+    await vm.stateManager.setStateRoot(parentBlock.header.stateRoot)
 
     const builder = await vm.buildBlock({
       parentBlock,
@@ -149,8 +148,20 @@ export class PendingBlock {
 
     this.pendingPayloads.set(payloadId, builder)
 
+    // Get if and how many blobs are allowed in the tx
+    let allowedBlobs
+    if (vm._common.isActivatedEIP(4844)) {
+      const dataGasLimit = vm._common.param('gasConfig', 'maxDataGasPerBlock')
+      const dataGasPerBlob = vm._common.param('gasConfig', 'dataGasPerBlob')
+      allowedBlobs = Number(dataGasLimit / dataGasPerBlob)
+    } else {
+      allowedBlobs = 0
+    }
     // Add current txs in pool
-    const txs = await this.txPool.txsByPriceAndNonce(vm, baseFeePerGas)
+    const txs = await this.txPool.txsByPriceAndNonce(vm, {
+      baseFee: baseFeePerGas,
+      allowedBlobs,
+    })
     this.config.logger.info(
       `Pending: Assembling block from ${txs.length} eligible txs (baseFee: ${baseFeePerGas})`
     )
@@ -190,20 +201,7 @@ export class PendingBlock {
 
     // Construct initial blobs bundle when payload is constructed
     if (vm._common.isActivatedEIP(4844)) {
-      const header = BlockHeader.fromHeaderData(
-        {
-          ...headerData,
-          number,
-          gasLimit,
-          baseFeePerGas,
-          excessDataGas,
-        },
-        {
-          hardforkByTTD: td,
-          common: vm._common,
-        }
-      )
-      this.constructBlobsBundle(payloadId, blobTxs, header.hash())
+      this.constructBlobsBundle(payloadId, blobTxs)
     }
     return payloadIdBytes
   }
@@ -220,7 +218,7 @@ export class PendingBlock {
     void builder.revert()
     // Remove from pendingPayloads
     this.pendingPayloads.delete(payloadId)
-    this.blobBundles.delete(payloadId)
+    this.blobsBundles.delete(payloadId)
   }
 
   /**
@@ -228,7 +226,7 @@ export class PendingBlock {
    */
   async build(
     payloadIdBytes: Uint8Array | string
-  ): Promise<void | [block: Block, receipts: TxReceipt[], value: bigint]> {
+  ): Promise<void | [block: Block, receipts: TxReceipt[], value: bigint, blobs?: BlobsBundle]> {
     const payloadId =
       typeof payloadIdBytes !== 'string' ? bytesToPrefixedHexString(payloadIdBytes) : payloadIdBytes
     const builder = this.pendingPayloads.get(payloadId)
@@ -239,10 +237,26 @@ export class PendingBlock {
     if (blockStatus.status === BuildStatus.Build) {
       return [blockStatus.block, builder.transactionReceipts, builder.minerValue]
     }
-    const { vm, headerData } = builder as any
+    const { vm, headerData } = builder as unknown as { vm: VM; headerData: HeaderData }
+
+    // get the number of blobs that can be further added
+    let allowedBlobs
+    if (vm._common.isActivatedEIP(4844)) {
+      const bundle = this.blobsBundles.get(payloadId) ?? { blobs: [], commitments: [], proofs: [] }
+      const dataGasLimit = vm._common.param('gasConfig', 'maxDataGasPerBlock')
+      const dataGasPerBlob = vm._common.param('gasConfig', 'dataGasPerBlob')
+      allowedBlobs = Number(dataGasLimit / dataGasPerBlob) - bundle.blobs.length
+    } else {
+      allowedBlobs = 0
+    }
 
     // Add new txs that the pool received
-    const txs = (await this.txPool.txsByPriceAndNonce(vm, headerData.baseFeePerGas)).filter(
+    const txs = (
+      await this.txPool.txsByPriceAndNonce(vm, {
+        baseFee: headerData.baseFeePerGas! as bigint,
+        allowedBlobs,
+      })
+    ).filter(
       (tx) =>
         (builder as any).transactions.some((t: TypedTransaction) =>
           equalsBytes(t.hash(), tx.hash())
@@ -295,19 +309,22 @@ export class PendingBlock {
     }
 
     const block = await builder.build()
+    // Construct blobs bundle
+    const blobs = block._common.isActivatedEIP(4844)
+      ? this.constructBlobsBundle(payloadId, blobTxs)
+      : undefined
+
     const withdrawalsStr = block.withdrawals ? ` withdrawals=${block.withdrawals.length}` : ''
+    const blobsStr = blobs ? ` blobs=${blobs.blobs.length}` : ''
     this.config.logger.info(
       `Pending: Built block number=${block.header.number} txs=${
         block.transactions.length
-      }${withdrawalsStr} skippedByAddErrors=${skippedByAddErrors}  hash=${bytesToHex(block.hash())}`
+      }${withdrawalsStr}${blobsStr} skippedByAddErrors=${skippedByAddErrors}  hash=${bytesToHex(
+        block.hash()
+      )}`
     )
 
-    // Construct blobs bundle
-    if (block._common.isActivatedEIP(4844)) {
-      this.constructBlobsBundle(payloadId, blobTxs, block.header.hash())
-    }
-
-    return [block, builder.transactionReceipts, builder.minerValue]
+    return [block, builder.transactionReceipts, builder.minerValue, blobs]
   }
 
   /**
@@ -316,30 +333,32 @@ export class PendingBlock {
    * @param txs an array of {@BlobEIP4844Transaction } transactions
    * @param blockHash the blockhash of the pending block (computed from the header data provided)
    */
-  private constructBlobsBundle = (
-    payloadId: string,
-    txs: BlobEIP4844Transaction[],
-    blockHash: Uint8Array
-  ) => {
+  private constructBlobsBundle = (payloadId: string, txs: BlobEIP4844Transaction[]) => {
     let blobs: Uint8Array[] = []
-    let kzgCommitments: Uint8Array[] = []
-    const bundle = this.blobBundles.get(payloadId)
+    let commitments: Uint8Array[] = []
+    let proofs: Uint8Array[] = []
+    const bundle = this.blobsBundles.get(payloadId)
     if (bundle !== undefined) {
       blobs = bundle.blobs
-      kzgCommitments = bundle.kzgCommitments
+      commitments = bundle.commitments
+      proofs = bundle.proofs
     }
 
     for (let tx of txs) {
       tx = tx as BlobEIP4844Transaction
       if (tx.blobs !== undefined && tx.blobs.length > 0) {
         blobs = blobs.concat(tx.blobs)
-        kzgCommitments = kzgCommitments.concat(tx.kzgCommitments!)
+        commitments = commitments.concat(tx.kzgCommitments!)
+        proofs = proofs.concat(tx.kzgProofs!)
       }
     }
-    this.blobBundles.set(payloadId, {
-      blockHash: bytesToPrefixedHexString(blockHash),
+
+    const blobsBundle = {
       blobs,
-      kzgCommitments,
-    })
+      commitments,
+      proofs,
+    }
+    this.blobsBundles.set(payloadId, blobsBundle)
+    return blobsBundle
   }
 }

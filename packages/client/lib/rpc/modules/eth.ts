@@ -529,7 +529,7 @@ export class Eth {
     await vm.stateManager.setStateRoot(block.header.stateRoot)
     const account = await vm.stateManager.getAccount(address)
     if (account === undefined) {
-      throw new Error(`could not read account`)
+      return '0x0'
     }
     return bigIntToHex(account.balance)
   }
@@ -703,7 +703,7 @@ export class Eth {
     const address = Address.fromString(addressHex)
     const account = await vm.stateManager.getAccount(address)
     if (account === undefined) {
-      throw new Error(`could not read account`)
+      return '0x0'
     }
     return bigIntToHex(account.nonce)
   }
@@ -924,6 +924,17 @@ export class Eth {
       if (txBuf[0] === 0x03) {
         // Blob Transactions sent over RPC are expected to be in Network Wrapper format
         tx = BlobEIP4844Transaction.fromSerializedBlobTxNetworkWrapper(txBuf, { common })
+
+        const dataGasLimit = common.param('gasConfig', 'maxDataGasPerBlock')
+        const dataGasPerBlob = common.param('gasConfig', 'dataGasPerBlob')
+
+        if (BigInt((tx.blobs ?? []).length) * dataGasPerBlob > dataGasLimit) {
+          throw Error(
+            `tx blobs=${(tx.blobs ?? []).length} exceeds block limit=${
+              dataGasLimit / dataGasPerBlob
+            }`
+          )
+        }
       } else {
         tx = TransactionFactory.fromSerializedData(txBuf, { common })
       }
@@ -1017,6 +1028,9 @@ export class Eth {
     const currentBlock = bigIntToHex(currentBlockHeader.number)
 
     const synchronizer = this.client.services[0].synchronizer
+    if (!synchronizer) {
+      return false
+    }
     const { syncTargetHeight } = this.client.config
     const startingBlock = bigIntToHex(synchronizer.startingBlock)
 

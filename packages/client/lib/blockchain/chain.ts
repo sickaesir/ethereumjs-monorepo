@@ -3,9 +3,11 @@ import { Blockchain } from '@ethereumjs/blockchain'
 import { ConsensusAlgorithm, Hardfork } from '@ethereumjs/common'
 import { equalsBytes } from 'ethereum-cryptography/utils'
 
+import { LevelDB } from '../execution/level'
 import { Event } from '../types'
 
 import type { Config } from '../config'
+import type { DB, DBObject } from '@ethereumjs/util'
 import type { AbstractLevel } from 'abstract-level'
 
 /**
@@ -98,7 +100,7 @@ export interface ChainHeaders {
  */
 export class Chain {
   public config: Config
-  public chainDB: AbstractLevel<string | Uint8Array, string | Uint8Array, string | Uint8Array>
+  public chainDB: DB<string | Uint8Array, string | Uint8Array | DBObject>
   public blockchain: Blockchain
   public opened: boolean
 
@@ -133,7 +135,7 @@ export class Chain {
     options.blockchain =
       options.blockchain ??
       new (Blockchain as any)({
-        db: options.chainDB,
+        db: new LevelDB(options.chainDB),
         common: options.config.chainCommon,
         hardforkByHeadBlockNumber: true,
         validateBlocks: true,
@@ -231,7 +233,7 @@ export class Chain {
   async close(): Promise<boolean | void> {
     if (!this.opened) return false
     this.reset()
-    await this.blockchain.db.close()
+    await (this.blockchain.db as any)?.close?.()
     this.opened = false
   }
 
@@ -294,16 +296,16 @@ export class Chain {
     )
 
     // Check and log if this is a terminal block and next block could be merge
-    if (!this.config.chainCommon.gteHardfork(Hardfork.Merge)) {
+    if (!this.config.chainCommon.gteHardfork(Hardfork.Paris)) {
       const nextBlockHf = this.config.chainCommon.getHardforkByBlockNumber(
         headers.height + BigInt(1),
         headers.td,
         undefined
       )
-      if (this.config.chainCommon.hardforkGteHardfork(nextBlockHf, Hardfork.Merge)) {
+      if (this.config.chainCommon.hardforkGteHardfork(nextBlockHf, Hardfork.Paris)) {
         this.config.logger.info('*'.repeat(85))
         this.config.logger.info(
-          `Merge hardfork reached 🐼 👉 👈 🐼 ! block=${headers.height} td=${headers.td}`
+          `Paris (Merge) hardfork reached 🐼 👉 👈 🐼 ! block=${headers.height} td=${headers.td}`
         )
         this.config.logger.info('-'.repeat(85))
         this.config.logger.info(' ')
@@ -386,7 +388,7 @@ export class Chain {
     }
 
     for (const [i, b] of newBlocks.entries()) {
-      if (!fromEngine && this.config.chainCommon.gteHardfork(Hardfork.Merge)) {
+      if (!fromEngine && this.config.chainCommon.gteHardfork(Hardfork.Paris)) {
         if (i > 0) {
           // emitOnLast below won't be reached, so run an update here
           await this.update(!skipUpdateEmit)
@@ -443,7 +445,7 @@ export class Chain {
 
     let numAdded = 0
     for (const [i, h] of headers.entries()) {
-      if (!mergeIncludes && this.config.chainCommon.gteHardfork(Hardfork.Merge)) {
+      if (!mergeIncludes && this.config.chainCommon.gteHardfork(Hardfork.Paris)) {
         if (i > 0) {
           // emitOnLast below won't be reached, so run an update here
           await this.update(true)
