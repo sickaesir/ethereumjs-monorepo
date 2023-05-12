@@ -329,34 +329,35 @@ tape('MMPT', async (t) => {
     }
     const walk = trie.walkTrie(trie.getRoot(), new Uint8Array(), onFound)
 
+    //  uncomment code to see trie readout
     for await (const _ of walk) {
-      let parentIdx: number | undefined
-      let branch: number | undefined
-      const hash = bytesToPrefixedHexString(_.hash())
-      if (branches.has(hash)) {
-        parentIdx = branches.get(hash)!.parent
-        branch = branches.get(hash)!.branch
-      }
       const walkIdx = i++
+      // let parentIdx: number | undefined
+      // let branch: number | undefined
+      // const hash = bytesToPrefixedHexString(_.hash())
+      // if (branches.has(hash)) {
+      //   parentIdx = branches.get(hash)!.parent
+      //   branch = branches.get(hash)!.branch
+      // }
       if (_.getType() === 'BranchNode') {
         const c: { [k: typeof walkIdx]: number }[] = []
         for await (const child of _.getChildren()) {
           c.push({ [walkIdx]: child[0] })
         }
-        console.log({
-          [walkIdx]: {
-            node: _.getType(),
-            branch: { [`${parentIdx}`]: branch },
-          },
-          children: c,
-        })
+        // console.log({
+        //   [walkIdx]: {
+        //     node: _.getType(),
+        //     branch: { [`${parentIdx}`]: branch },
+        //   },
+        //   children: c,
+        // })
       } else {
-        console.log({
-          [walkIdx]: {
-            node: _.getType(),
-          },
-          branch: { [`${parentIdx}`]: branch },
-        })
+        //   console.log({
+        //     [walkIdx]: {
+        //       node: _.getType(),
+        //     },
+        //     branch: { [`${parentIdx}`]: branch },
+        //   })
       }
     }
     const uniqueValuesFound = Array.from(new Set(valuesFound))
