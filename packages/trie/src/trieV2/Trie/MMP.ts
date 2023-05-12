@@ -12,7 +12,7 @@ import {
 
 import { fromProof, verifyProof } from './utils'
 
-import type { NodeType, TNode } from '../types'
+import type { NodeType, OnFoundFunction, TNode, WalkFilterFunction } from '../types'
 import type { WalkResult } from '../util'
 import type { Debugger } from 'debug'
 
@@ -175,7 +175,7 @@ export class Trie {
       },
     }
     const inserted = await _insert[type]()
-    return inserted
+    return this._cleanupNode(inserted, debug)
   }
   async _deleteAtNode(_node: TNode, _keyNibbles: number[], debug: Debugger = this.debug) {
     debug = debug.extend('_deleteAtNode')
@@ -192,7 +192,7 @@ export class Trie {
           debug(`found leaf node to delete`)
           return new NullNode()
         } else {
-          throw new Error('leaf does not match key to delete')
+          return new NullNode()
         }
       },
       ExtensionNode: async () => {
@@ -207,7 +207,7 @@ export class Trie {
             debug
           )
           extensionNode.updateChild(newChild)
-          return this._cleanupNode(extensionNode, debug)
+          return extensionNode
         } else {
           return extensionNode
         }
@@ -221,7 +221,6 @@ export class Trie {
           const updatedChildNode = await this._deleteAtNode(childNode, _keyNibbles, debug)
           branchNode.updateChild(updatedChildNode, childIndex)
           return branchNode
-          // return this._cleanupNode(branchNode, debug)
         } else {
           return branchNode
         }
@@ -230,10 +229,11 @@ export class Trie {
         throw new Error('method not implemented')
       },
     }
-    return d[_node.getType()]()
+    const deleted = await d[_node.getType()]()
+    return this._cleanupNode(deleted, debug)
   }
 
-  async _walkTrie(key: Uint8Array, debug: Debugger = this.debug): Promise<WalkResult> {
+  private async _walkTrie(key: Uint8Array, debug: Debugger = this.debug): Promise<WalkResult> {
     debug = debug.extend('_walkTrie')
     const keyNibbles = decodeNibbles(key)
     let currentNode: TNode = this.root
@@ -303,31 +303,38 @@ export class Trie {
     }
   }
 
-  private _cleanupNode(node: TNode, debug: Debugger = this.debug): TNode {
+  async _cleanupNode(node: TNode, debug: Debugger = this.debug): Promise<TNode> {
     debug = debug.extend('_cleanupNode')
-    debug(node.getType())
-    if (node.getType() === 'ExtensionNode') {
-      const extensionNode = node as ExtensionNode
-      const nextNode = extensionNode.getChild()
-      if (nextNode instanceof ExtensionNode) {
-        debug(`compressing extension nodes`)
-        const newSharedNibbles = extensionNode.getPartialKey().concat(nextNode.getPartialKey())
-        return new ExtensionNode({ keyNibbles: newSharedNibbles, subNode: nextNode.child })
-      }
-    } else if (node.getType() === 'BranchNode') {
-      const branchNode = node as BranchNode
-      const nonNullChildren = branchNode.getChildren()
-      const [childIndex, childNode]: [number, TNode] = nonNullChildren.entries().next().value
-      const newSharedNibbles = [childIndex].concat(childNode.getPartialKey())
-      if (childNode.type === 'ExtensionNode') {
-        return new ExtensionNode({ keyNibbles: newSharedNibbles, subNode: childNode.getChild()! })
-      } else if (childNode.type === 'LeafNode') {
-        return new LeafNode({
-          key: newSharedNibbles,
-          value: childNode.value,
-        })
+    debug(`Cleaning up node: ${node.getType()}`)
+    // If the node is a branch node, check the number of children.
+    if (node instanceof BranchNode) {
+      // If there's only one child, replace the branch node with that child.
+      if (node.getChildren().size === 1) {
+        const [idx, _child] = node.getChildren().entries().next().value
+        let child = _child
+        // If the child is a leaf or another branch node, we concatenate the
+        // key nibbles of the branch node and the child.
+        if (child instanceof LeafNode || child instanceof BranchNode) {
+          child = child.updateKey([idx, ...node.getPartialKey(), ...child.getPartialKey()])
+        }
+
+        // If the child is an extension node, we simply append the branch node's
+        // key nibbles to the beginning of the extension node's key nibbles.
+        else if (child instanceof ExtensionNode) {
+          child = new ExtensionNode({
+            keyNibbles: [idx, ...node.getPartialKey(), ...child.getPartialKey()],
+            subNode: child.child,
+          })
+        }
+
+        // After cleaning up, there may be more nodes that can be pruned. We
+        // repeat the cleanup process until there are no more nodes to prune.
+        return this._cleanupNode(child)
       }
     }
+
+    // If the node is not a branch node, or it's a branch node with more than
+    // one child, there's nothing to clean up and we return the node as is.
     return node
   }
 }
