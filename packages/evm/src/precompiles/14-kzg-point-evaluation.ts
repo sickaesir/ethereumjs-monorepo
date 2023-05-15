@@ -59,7 +59,14 @@ export async function precompile14(opts: PrecompileInput): Promise<ExecResult> {
       )} z=${bytesToHex(z)} y=${bytesToHex(y)} kzgProof=${bytesToHex(kzgProof)}`
     )
   }
-  kzg.verifyKzgProof(commitment, z, y, kzgProof)
+
+  try {
+    if (kzg.verifyKzgProof(commitment, z, y, kzgProof) === false) {
+      return EvmErrorResult(new EvmError(ERROR.INVALID_COMMITMENT), opts.gasLimit)
+    }
+  } catch {
+    return EvmErrorResult(new EvmError(ERROR.INVALID_COMMITMENT), opts.gasLimit)
+  }
 
   // Return value - FIELD_ELEMENTS_PER_BLOB and BLS_MODULUS as padded 32 byte big endian values
   const fieldElementsBuffer = setLengthLeft(bigIntToBytes(fieldElementsPerBlob), 32)
