@@ -28,8 +28,8 @@ import type {
   TxReceipt,
 } from './types'
 import type { VM } from './vm'
-import type { StatelessVerkleStateManager } from '@ethereumjs/statemanager'
 import type { EVMStateManagerInterface } from '@ethereumjs/common'
+import type { StatelessVerkleStateManager } from '@ethereumjs/statemanager'
 
 const debug = createDebugLogger('vm:block')
 
@@ -94,9 +94,9 @@ export async function runBlock(this: VM, opts: RunBlockOpts): Promise<RunBlockRe
       debug(`Apply DAO hardfork`)
     }
 
-    // If Verkle EIP is activated, populate StateManager with preState
+    // If Verkle EIP is activated, populate VerkleStatelessStateManager with preState
     if (this._common.isActivatedEIP(999001)) {
-      ;(this._opts.stateManager as StatelessVerkleStateManager).initPreState(
+      ;(this._opts.stateManager as unknown as StatelessVerkleStateManager).initPreState(
         block.header.verkleProof!,
         block.header.verklePreState!
       )
