@@ -39,6 +39,13 @@ export class Database implements Idb {
     await this.db.open()
     this.log('DB opened')
   }
+  async keys(): Promise<Uint8Array[]> {
+    const keys = []
+    for await (const key of this.db.keys()) {
+      keys.push(hexStringToBytes(key))
+    }
+    return keys
+  }
   async get(key: Uint8Array): Promise<Uint8Array | null> {
     this.log.extend('get')(bytesToHex(key))
     try {

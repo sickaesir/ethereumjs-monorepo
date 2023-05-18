@@ -8,7 +8,7 @@ import { MerklePatriciaTrie } from './MMP'
 import { Database } from './db'
 import { _getNode } from './getNode'
 
-import type { TNode, WalkFilterFunction } from '../types'
+import type { TNode } from '../types'
 import type { MerklePatriciaTrieOptions } from './MMP'
 
 function shortHash(key: Uint8Array) {
@@ -114,21 +114,15 @@ export class TrieDB extends MerklePatriciaTrie {
   }
   async garbageCollect(): Promise<void> {
     const reachableHashes = await this._markReachableNodes(this.root)
-    const filter: WalkFilterFunction = async (node: TNode, _key: Uint8Array) => {
-      const nodeHash = node.hash()
-      return (
-        !reachableHashes.has(nodeHash) &&
-        !this.checkpoints.includes(bytesToPrefixedHexString(nodeHash))
-      )
+    for (const hash of this.cache.keys()) {
+      if (!reachableHashes.has(hash)) {
+        this.cache.delete(hash)
+      }
     }
-    const onFound = async (node: TNode, _key: Uint8Array) => {
-      const nodeHash = node.hash()
-      await this.db.del(nodeHash)
-      this.cache.delete(nodeHash)
-    }
-    const walk = this._walkTrieRecursively(this.root, Uint8Array.from([]), onFound, filter)
-    for await (const node of walk) {
-      this.debug.extend('garbageCollect')(`deleting ${node.getType()}: ${node.hash()}`)
+    for (const hash of await this.db.keys()) {
+      if (!reachableHashes.has(hash)) {
+        await this.db.del(hash)
+      }
     }
   }
   async _markReachableNodes(
