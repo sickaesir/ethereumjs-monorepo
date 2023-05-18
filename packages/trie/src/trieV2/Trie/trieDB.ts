@@ -42,6 +42,7 @@ export class TrieDB extends MerklePatriciaTrie {
     this.cache = options.cache ?? new LRUCache({ max: 1000 })
     this.checkpoints = options.checkpoints ?? []
     this.maxCheckpoints = options.maxCheckpoints ?? 1000
+    this.on('nodeAdded', (node: TNode) => this._storeNode(node))
   }
   async _findPath(key: Uint8Array): Promise<PathToNode> {
     const { path, remainingNibbles } = await _getNode(this.root, key, this.debug)

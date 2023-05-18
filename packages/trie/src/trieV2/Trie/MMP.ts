@@ -1,5 +1,6 @@
 import debug from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak'
+import { EventEmitter } from 'events'
 
 import { NullNode } from '../Node'
 
@@ -19,7 +20,7 @@ export interface MerklePatriciaTrieOptions {
   hashFunction?: (data: Uint8Array) => Uint8Array
   debug?: Debugger
 }
-export class MerklePatriciaTrie {
+export class MerklePatriciaTrie extends EventEmitter {
   static async verifyProof(
     rootHash: Uint8Array,
     key: Uint8Array,
@@ -39,13 +40,13 @@ export class MerklePatriciaTrie {
   debug: Debugger
   hashFunction: (data: Uint8Array) => Uint8Array
   secure?: boolean
-  constructor(options?: MerklePatriciaTrieOptions) {
-    this.root = options?.root ?? new NullNode()
-    this.debug = options?.debug ? options.debug.extend(`Trie`) : debug('Trie')
-    this.secure = options?.secure
-    this.hashFunction = options?.hashFunction ?? keccak256
+  constructor(options: MerklePatriciaTrieOptions = {}) {
+    super()
+    this.root = options.root ?? new NullNode()
+    this.debug = options.debug ? options.debug.extend(`Trie`) : debug('Trie')
+    this.secure = options.secure
+    this.hashFunction = options.hashFunction ?? keccak256
   }
-
   async _getNode(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode> {
     const { node: lastNode } = await _getNode(this.root, key, debug)
     debug(`returning: ${lastNode.getType()} for key: ${key}`)
@@ -63,7 +64,7 @@ export class MerklePatriciaTrie {
     return _deleteAtNode(_node, _keyNibbles, debug)
   }
   async _cleanupNode(node: TNode, debug: Debugger = this.debug): Promise<TNode> {
-    return _cleanupNode(node, debug)
+    return _cleanupNode(node, debug, this)
   }
   async *_walkTrieRecursively(
     node: TNode | null,
