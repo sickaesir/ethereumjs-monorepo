@@ -155,6 +155,7 @@ export function nibblesToKey(nibbles: Nibble[]): Uint8Array {
 
 export type WalkResult = {
   node: TNode
+  path: TNode[]
   remainingNibbles: number[]
 }
 export function removeNibbles(nibbles: number[], count: number): number[] {

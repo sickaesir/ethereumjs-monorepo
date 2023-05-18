@@ -29,7 +29,7 @@ export async function _getNode(root: TNode, key: Uint8Array, debug: Debugger): P
         childIndex = keyNibbles[nibbleIndex]
         if (childIndex === undefined) {
           debug.extend(currentNode.getType())(`Child index is undefined, returning`)
-          return { node: currentNode as BranchNode, remainingNibbles: [] }
+          return { node: currentNode as BranchNode, path, remainingNibbles: [] }
         }
         debug.extend(currentNode.getType())(
           `Searching for child at index ${keyNibbles[nibbleIndex]}`
@@ -43,7 +43,7 @@ export async function _getNode(root: TNode, key: Uint8Array, debug: Debugger): P
           currentNode = childNode
         } else {
           debug.extend(currentNode.getType())(`Child not found, returning`)
-          return { node: currentNode, remainingNibbles: keyNibbles.slice(nibbleIndex) }
+          return { node: currentNode, path, remainingNibbles: keyNibbles.slice(nibbleIndex) }
         }
 
         break
@@ -56,12 +56,12 @@ export async function _getNode(root: TNode, key: Uint8Array, debug: Debugger): P
           nibbleIndex += sharedNibbles.length
           if (nibbleIndex === keyNibbles.length) {
             debug.extend(currentNode.getType())(`Reached end of key.`)
-            return { node: currentNode.child, remainingNibbles: [] }
+            return { node: currentNode.child, path, remainingNibbles: [] }
           }
           currentNode = (currentNode as ExtensionNode).child
         } else {
           debug.extend(currentNode.getType())(`Shared nibbles do not match.`)
-          return { node: new NullNode(), remainingNibbles: keyNibbles.slice(nibbleIndex) }
+          return { node: new NullNode(), path, remainingNibbles: keyNibbles.slice(nibbleIndex) }
         }
         break
       case 'LeafNode':
@@ -69,10 +69,10 @@ export async function _getNode(root: TNode, key: Uint8Array, debug: Debugger): P
           nibblesEqual(keyNibbles.slice(nibbleIndex), (currentNode as LeafNode).getPartialKey())
         ) {
           debug.extend(currentNode.getType())(`Nibbles Match`)
-          return { node: currentNode as LeafNode, remainingNibbles: [] }
+          return { node: currentNode as LeafNode, path, remainingNibbles: [] }
         } else {
           debug.extend(currentNode.getType())(`Nibbles Do Not Match`)
-          return { node: new NullNode(), remainingNibbles: keyNibbles.slice(nibbleIndex) }
+          return { node: new NullNode(), path, remainingNibbles: keyNibbles.slice(nibbleIndex) }
         }
     }
     debug(`CurrentNode: ${currentNode.getType()}: ${currentNode.getPartialKey()}`)
@@ -80,6 +80,7 @@ export async function _getNode(root: TNode, key: Uint8Array, debug: Debugger): P
   debug(`Returning NullNode`)
   return {
     node: new NullNode(),
+    path,
     remainingNibbles: keyNibbles.slice(nibbleIndex),
   }
 }

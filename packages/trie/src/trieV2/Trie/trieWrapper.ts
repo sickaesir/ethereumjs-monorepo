@@ -7,25 +7,27 @@ import { LeafNode } from '../Node'
 import { keyToNibbles, nibblesToKey } from '../util'
 
 import { MerklePatriciaTrie } from './MMP'
+import { TrieDB } from './trieDB'
 
 import type { OnFoundFunction, TNode, WalkFilterFunction } from '../types'
-import type { MerklePatriciaTrieOptions } from './MMP'
+import type { TrieDBOptions } from './trieDB'
 import type { Debugger } from 'debug'
 
-export class TrieWrap extends MerklePatriciaTrie {
+export type TrieWrapOptions = TrieDBOptions
+export class TrieWrap extends TrieDB {
   static async fromProof(
     rootHash: Uint8Array,
     proof: TNode[],
     dbug: Debugger = debug('Trie')
   ): Promise<TrieWrap> {
     const trie = await MerklePatriciaTrie.fromProof(rootHash, proof, dbug)
-    return new TrieWrap(trie)
+    return new TrieWrap({ root: trie.root, debug: dbug })
   }
   debug: Debugger
   _operationMutex: Mutex
   keySecure: (key: Uint8Array) => Uint8Array
 
-  constructor(options: MerklePatriciaTrieOptions) {
+  constructor(options: TrieWrapOptions) {
     super(options)
     this.debug = options.debug ? options.debug.extend('Trie') : debug(`Trie`)
     this._operationMutex = new Mutex()
