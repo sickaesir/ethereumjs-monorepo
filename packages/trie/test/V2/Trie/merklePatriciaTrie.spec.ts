@@ -24,7 +24,7 @@ tape('trietest.json', async (_tape) => {
       const value = typeof v === 'string' ? utf8ToBytes(v) : null
       const value_v1 = v !== null ? utf8ToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       toTest.set(k, v)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
@@ -54,7 +54,7 @@ tape('trietest.json', async (_tape) => {
       const value = typeof v === 'string' ? utf8ToBytes(v) : null
       const value_v1 = v !== null ? utf8ToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
       t.deepEqual(v2_root, v1_root, 'v2 new root hash should match v1')
@@ -87,7 +87,7 @@ tape('trietest.json', async (_tape) => {
       const value = typeof v === 'string' ? hexStringToBytes(v) : null
       const value_v1 = v !== null ? hexStringToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
       t.deepEqual(v2_root, v1_root, 'v2 new root hash should match v1')
@@ -121,7 +121,7 @@ tape('trietest.json', async (_tape) => {
       const value = typeof v === 'string' ? utf8ToBytes(v) : null
       const value_v1 = v !== null ? utf8ToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
       t.deepEqual(v2_root, v1_root, 'v2 new root hash should match v1')
@@ -155,7 +155,7 @@ tape('trietest.json', async (_tape) => {
       const value = typeof v === 'string' ? utf8ToBytes(v) : null
       const value_v1 = v !== null ? utf8ToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
       t.deepEqual(v2_root, v1_root, 'v2 new root hash should match v1')
@@ -204,7 +204,7 @@ tape('hex_encoded_securetrie_test.json', async (_tape) => {
       const value = typeof v === 'string' ? utf8ToBytes(v) : null
       const value_v1 = v !== null ? utf8ToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       toTest.set(k, v)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
@@ -234,7 +234,7 @@ tape('hex_encoded_securetrie_test.json', async (_tape) => {
       const value = typeof v === 'string' ? utf8ToBytes(v) : null
       const value_v1 = v !== null ? utf8ToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
       t.deepEqual(v2_root, v1_root, 'v2 new root hash should match v1')
@@ -267,7 +267,7 @@ tape('hex_encoded_securetrie_test.json', async (_tape) => {
       const value = typeof v === 'string' ? hexStringToBytes(v) : null
       const value_v1 = v !== null ? hexStringToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
       t.deepEqual(v2_root, v1_root, 'v2 new root hash should match v1')
@@ -305,7 +305,7 @@ tape('securetrie', async (t) => {
       const value = typeof v === 'string' ? hexStringToBytes(v) : null
       const value_v1 = v !== null ? hexStringToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
       st.deepEqual(v2_root, v1_root, 'v2 new root hash should match v1')
@@ -339,7 +339,7 @@ tape('securetrie', async (t) => {
       const value = typeof v === 'string' ? hexStringToBytes(v) : null
       const value_v1 = v !== null ? hexStringToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
       st.deepEqual(v2_root, v1_root, 'v2 new root hash should match v1')
@@ -373,7 +373,7 @@ tape('securetrie', async (t) => {
       const value = typeof v === 'string' ? hexStringToBytes(v) : null
       const value_v1 = v !== null ? hexStringToBytes(v) : Uint8Array.from([])
       await trie_v1.put(key, value_v1)
-      await trie_v2.insert(key, value)
+      await trie_v2.put(key, value)
       const v1_root = trie_v1.root()
       const v2_root = trie_v2.getRootHash()
       st.deepEqual(v2_root, v1_root, 'v2 new root hash should match v1')
@@ -415,7 +415,7 @@ tape('secure_anyOrder', async (t) => {
         const value = typeof v === 'string' ? serializer(v, hex) : null
         const value_v1 = v !== null ? serializer(v, hex) : Uint8Array.from([])
         await trie_v1.put(key, value_v1)
-        await trie_v2.insert(key, value)
+        await trie_v2.put(key, value)
         toTest.set(k, v)
         const v1_root = trie_v1.root()
         const v2_root = trie_v2.getRootHash()
@@ -452,7 +452,7 @@ tape('anyOrder', async (t) => {
         const value = typeof v === 'string' ? serializer(v, hex) : null
         const value_v1 = v !== null ? serializer(v, hex) : Uint8Array.from([])
         await trie_v1.put(key, value_v1)
-        await trie_v2.insert(key, value)
+        await trie_v2.put(key, value)
         toTest.set(k, v)
         const v1_root = trie_v1.root()
         const v2_root = trie_v2.getRootHash()

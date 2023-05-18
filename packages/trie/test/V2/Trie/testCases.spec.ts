@@ -27,7 +27,7 @@ const runTests = async (testSizes: number[] = [100, 200]) => {
         const value = await trie.get(Uint8Array.from([1, 2, 3, 4]), d_bug)
         st.equal(value, null, 'get should return null for a non-existent key')
         for await (const [idx, key] of keys.entries()) {
-          await trie.insert(key, values[idx], d_bug)
+          await trie.put(key, values[idx], d_bug)
         }
         for await (const [idx, key] of keys.entries()) {
           const retrieved = await trie.get(key, d_bug)
@@ -105,7 +105,7 @@ const runTests = async (testSizes: number[] = [100, 200]) => {
         const d_bug = debug('test:proof')
         const trie = new TrieWrap({ debug: d_bug })
         for await (const [idx, key] of keys.entries()) {
-          await trie.insert(key, values[idx], d_bug)
+          await trie.put(key, values[idx], d_bug)
         }
         for await (const [idx, key] of keys.entries()) {
           const retrieved = await trie.get(key, d_bug)
@@ -169,7 +169,7 @@ const runTests = async (testSizes: number[] = [100, 200]) => {
         const d_bug = debug('test:walkTrie')
         const trie = new TrieWrap({ debug: d_bug })
         for await (const [idx, key] of keys.entries()) {
-          await trie.insert(key, values[idx], d_bug)
+          await trie.put(key, values[idx], d_bug)
         }
         for await (const [idx, key] of keys.entries()) {
           const retrieved = await trie.get(key, d_bug)
@@ -275,7 +275,7 @@ tape('node serialization', async (t) => {
   const trie = new TrieWrap({ debug: debug('test:node:serialization') })
   const key = utf8ToBytes('key')
   const value = utf8ToBytes('value')
-  await trie.insert(key, value)
+  await trie.put(key, value)
   const node = trie.getRoot()
   const serialized = node.rlpEncode()
   const deserialized = await TrieNode.decodeToNode(serialized)
