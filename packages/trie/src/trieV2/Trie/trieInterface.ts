@@ -5,11 +5,8 @@ import type { Debugger } from 'debug'
 import type { LRUCache } from 'lru-cache'
 
 export interface TrieInterface {
-  /** The root hash of the trie */
-  root: Uint8Array
-
-  /** A map of all nodes in the trie */
-  nodes: Map<Uint8Array, TNode>
+  /** The root node of the trie */
+  root: TNode
 
   /** The database used to store trie nodes */
   db: Database

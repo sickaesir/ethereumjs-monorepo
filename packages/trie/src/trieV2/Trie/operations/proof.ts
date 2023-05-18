@@ -1,12 +1,11 @@
 import debug from 'debug'
 import { equalsBytes } from 'ethereum-cryptography/utils'
 
-import { BranchNode, ExtensionNode, LeafNode, NullNode } from '../Node'
-import { keyToNibbles, nibblesToKey } from '../util'
+import { BranchNode, ExtensionNode, LeafNode, NullNode } from '../../Node'
+import { keyToNibbles, nibblesToKey } from '../../util'
+import { MerklePatriciaTrie } from '../mptrie'
 
-import { MerklePatriciaTrie } from './MMP'
-
-import type { TNode } from '../types'
+import type { TNode } from '../../types'
 import type { Debugger } from 'debug'
 
 export async function verifyProof(

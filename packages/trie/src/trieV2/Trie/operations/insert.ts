@@ -1,11 +1,11 @@
 import { bytesToPrefixedHexString } from '@ethereumjs/util'
 
-import { BranchNode, ExtensionNode, LeafNode } from '../Node'
-import { findCommonPrefix, getSharedNibbles } from '../util'
+import { BranchNode, ExtensionNode, LeafNode } from '../../Node'
+import { findCommonPrefix, getSharedNibbles } from '../../util'
 
 import { _cleanupNode } from './cleanup'
 
-import type { NodeType, TNode } from '../types'
+import type { NodeType, TNode } from '../../types'
 import type { Debugger } from 'debug'
 
 export async function _insertAtNode(

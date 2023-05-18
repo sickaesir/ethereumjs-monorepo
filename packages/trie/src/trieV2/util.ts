@@ -210,21 +210,3 @@ export function hasMatchingNibbles(a: number[], b: number[]): boolean {
 export function nibblesEqual(a: number[], b: number[]): boolean {
   return matchingNibbleLength(a, b) === a.length && a.length === b.length
 }
-// export function addPadding(nibbles: Nibble[]): Nibble[] {
-//   const length = nibbles.length
-//   const isOddLength = length % 2 === 1
-
-//   if (isOddLength) {
-//     nibbles.unshift(NIBBLE_PADDING)
-//     return nibbles
-//   } else {
-//     return nibbles
-//   }
-// }
-// export function unPad(nibbles: Nibble[]): Nibble[] {
-//   if (nibbles[0] === NIBBLE_PADDING) {
-//     return nibbles.slice(1)
-//   } else {
-//     return nibbles
-//   }
-// }

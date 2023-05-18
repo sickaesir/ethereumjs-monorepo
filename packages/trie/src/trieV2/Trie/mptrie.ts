@@ -4,11 +4,11 @@ import { EventEmitter } from 'events'
 
 import { NullNode } from '../Node'
 
-import { _cleanupNode } from './cleanup'
-import { _deleteAtNode } from './delete'
-import { _getNode } from './getNode'
-import { _insertAtNode } from './insert'
-import { fromProof, verifyProof } from './proof'
+import { _cleanupNode } from './operations/cleanup'
+import { _deleteAtNode } from './operations/delete'
+import { _getNode } from './operations/getNode'
+import { _insertAtNode } from './operations/insert'
+import { fromProof, verifyProof } from './operations/proof'
 
 import type { BranchNode } from '../Node'
 import type { OnFoundFunction, TNode, WalkFilterFunction } from '../types'

@@ -1,8 +1,8 @@
 import { debug as _debug } from 'debug'
 
-import { BranchNode, ExtensionNode, LeafNode, NullNode } from '../Node'
+import { BranchNode, ExtensionNode, LeafNode, NullNode } from '../../Node'
 
-import type { TNode } from '../types'
+import type { TNode } from '../../types'
 import type { Debugger } from 'debug'
 import type { EventEmitter } from 'events'
 

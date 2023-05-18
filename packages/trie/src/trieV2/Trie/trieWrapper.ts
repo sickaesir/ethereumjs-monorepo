@@ -6,7 +6,7 @@ import { equalsBytes } from 'ethereum-cryptography/utils'
 import { LeafNode } from '../Node'
 import { keyToNibbles, nibblesToKey } from '../util'
 
-import { MerklePatriciaTrie } from './MMP'
+import { MerklePatriciaTrie } from './mptrie'
 import { TrieDB } from './trieDB'
 
 import type { OnFoundFunction, TNode, WalkFilterFunction } from '../types'

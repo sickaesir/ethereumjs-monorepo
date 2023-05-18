@@ -1,10 +1,10 @@
-import { NullNode } from '../Node'
-import { getSharedNibbles, nibblesEqual } from '../util'
+import { NullNode } from '../../Node'
+import { getSharedNibbles, nibblesEqual } from '../../util'
 
 import { _cleanupNode } from './cleanup'
 
-import type { BranchNode, ExtensionNode, LeafNode } from '../Node'
-import type { NodeType, TNode } from '../types'
+import type { BranchNode, ExtensionNode, LeafNode } from '../../Node'
+import type { NodeType, TNode } from '../../types'
 import type { Debugger } from 'debug'
 
 export async function _deleteAtNode(_node: TNode, _keyNibbles: number[], debug: Debugger) {

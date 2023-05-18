@@ -4,12 +4,12 @@ import { LRUCache } from 'lru-cache'
 
 import { TrieNode } from '../Node'
 
-import { MerklePatriciaTrie } from './MMP'
 import { Database } from './db'
-import { _getNode } from './getNode'
+import { MerklePatriciaTrie } from './mptrie'
+import { _getNode } from './operations/getNode'
 
 import type { TNode } from '../types'
-import type { MerklePatriciaTrieOptions } from './MMP'
+import type { MerklePatriciaTrieOptions } from './mptrie'
 
 function shortHash(key: Uint8Array) {
   return bytesToPrefixedHexString(key).slice(0, 18)

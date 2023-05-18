@@ -1,11 +1,11 @@
 import { bytesToPrefixedHexString } from '@ethereumjs/util'
 
-import { NullNode } from '../Node'
-import { decodeNibbles, nibblesEqual } from '../util'
+import { NullNode } from '../../Node'
+import { decodeNibbles, nibblesEqual } from '../../util'
 
-import type { BranchNode, ExtensionNode, LeafNode } from '../Node'
-import type { TNode } from '../types'
-import type { WalkResult } from '../util'
+import type { BranchNode, ExtensionNode, LeafNode } from '../../Node'
+import type { TNode } from '../../types'
+import type { WalkResult } from '../../util'
 import type { Debugger } from 'debug'
 
 export async function _getNode(root: TNode, key: Uint8Array, debug: Debugger): Promise<WalkResult> {
