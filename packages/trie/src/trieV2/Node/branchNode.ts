@@ -5,7 +5,7 @@ import { keccak256 } from 'ethereum-cryptography/keccak'
 
 import { matchingNibbleLength } from '..'
 
-import { BaseNode, ExtensionNode, LeafNode, NullNode } from './index'
+import { BaseNode, ExtensionNode, NullNode } from './index'
 
 import type { Nibble, NodeInterface, NodeType, TNode, TNodeOptions } from '../types'
 
@@ -101,10 +101,9 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
     const children: Map<number, TNode> = new Map()
     for (let i = 0; i < 16; i++) {
       const child = this.children[i]
-      if (child === undefined || child.getType() !== 'NullNode') {
-        continue
+      if (child !== undefined && child.getType() !== 'NullNode') {
+        children.set(i, child)
       }
-      children.set(i, child)
     }
     return children
   }
@@ -131,8 +130,8 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
       this.debug.extend('updateChild').extend(`${nibble}`)(
         `keyNibbles(${newChild.getPartialKey().length}):${newChild.getPartialKey()}`
       )
-      // this.debug.extend('updateChild')(`oldHash=${bytesToPrefixedHexString(curHash)}`)
-      // this.debug.extend('updateChild')(`newHash=${bytesToPrefixedHexString(this.hash())}`)
+      this.debug.extend('updateChild')(`oldHash=${bytesToPrefixedHexString(curHash)}`)
+      this.debug.extend('updateChild')(`newHash=${bytesToPrefixedHexString(this.hash())}`)
     }
     return new BranchNode({ children: this.children, value: this.value })
   }

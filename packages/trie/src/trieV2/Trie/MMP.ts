@@ -50,7 +50,6 @@ export class Trie {
     return key
   }
   async _getNode(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode> {
-    // key = this.appliedKey(key)
     debug = debug.extend('_getNode')
     debug(`getting value for key: ${bytesToPrefixedHexString(key)}`)
     debug(`keyToNibbles: ${keyToNibbles(key)}`)
@@ -492,7 +491,7 @@ export class Trie {
     }
     switch (node.type) {
       case 'BranchNode': {
-        for await (const [nibble, childNode] of node.getChildren()) {
+        for (const [nibble, childNode] of (node as BranchNode).childNodes().entries()) {
           const nextKey = Uint8Array.from([...currentKey, nibble])
           yield* this._walkTrieRecursively(childNode, nextKey, onFound, filter)
         }

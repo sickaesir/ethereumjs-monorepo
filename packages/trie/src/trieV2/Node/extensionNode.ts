@@ -94,7 +94,7 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
   }
 
   getValue(): Uint8Array | null {
-    throw new Error('method does not exist')
+    return null
   }
   getPartialKey(): Nibble[] {
     return this.keyNibbles
