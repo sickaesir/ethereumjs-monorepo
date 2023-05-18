@@ -1,4 +1,4 @@
-import { bytesToPrefixedHexString } from '@ethereumjs/util'
+import { bytesToPrefixedHexString, hexStringToBytes } from '@ethereumjs/util'
 import { equalsBytes } from 'ethereum-cryptography/utils'
 import { LRUCache } from 'lru-cache'
 
@@ -7,9 +7,8 @@ import { TrieNode } from '../Node'
 import { MerklePatriciaTrie } from './MMP'
 import { Database } from './db'
 import { _getNode } from './getNode'
-import { TrieWrap } from './trieWrapper'
 
-import type { TNode } from '../types'
+import type { TNode, WalkFilterFunction } from '../types'
 import type { MerklePatriciaTrieOptions } from './MMP'
 
 function shortHash(key: Uint8Array) {
@@ -24,21 +23,18 @@ type PathToNode = {
 export interface TrieDBOptions extends MerklePatriciaTrieOptions {
   db?: Database
   cache?: LRUCache<Uint8Array, TNode>
-  checkpoints?: Uint8Array[]
-  nodes?: Map<Uint8Array, TNode>
+  checkpoints?: string[]
   maxCheckpoints?: number
 }
 
 export class TrieDB extends MerklePatriciaTrie {
   db: Database
-  nodes: Map<Uint8Array, TNode>
-  checkpoints: Uint8Array[]
+  checkpoints: string[]
   maxCheckpoints: number
   cache: LRUCache<Uint8Array, TNode>
-  constructor(options: TrieDBOptions) {
+  constructor(options: TrieDBOptions = {}) {
     super(options)
-    this.db = options.db ?? new Database()
-    this.nodes = options.nodes ?? new Map()
+    this.db = options.db ?? new Database({ debug: this.debug })
     this.cache = options.cache ?? new LRUCache({ max: 1000 })
     this.checkpoints = options.checkpoints ?? []
     this.maxCheckpoints = options.maxCheckpoints ?? 1000
@@ -50,26 +46,19 @@ export class TrieDB extends MerklePatriciaTrie {
   }
   async _lookupNodeByHash(hash: Uint8Array): Promise<TNode | null> {
     this.debug.extend('_lookupNode')(`key: ${shortHash(hash)}`)
-    // First, attempt to get the node from the nodes map.
-    let node = this.nodes.get(hash)
+    // First, attempt to get it from the cache.
+    let node = this.cache.get(hash)
     if (node) {
-      this.debug.extend('_lookupNode')(`node found in nodes map`)
+      this.debug.extend('_lookupNode')(`node found in cache`)
       return node
     } else {
-      // If the node is not in the nodes map, attempt to get it from the cache.
-      node = this.cache.get(hash)
-      if (node) {
-        this.debug.extend('_lookupNode')(`node found in cache`)
-        return node
-      } else {
-        // If the node is not in the cache, look it up in the database.
-        const data = await this.db.get(hash)
-        if (data) {
-          this.debug.extend('_lookupNode')(`node found in db`)
-          node = await TrieNode.decodeToNode(data)
-          // Cache the retrieved node for future lookups.
-          this.cache.set(hash, node)
-        }
+      // If the node is not in the cache, look it up in the database.
+      const data = await this.db.get(hash)
+      if (data) {
+        this.debug.extend('_lookupNode')(`node found in db`)
+        node = await TrieNode.decodeToNode(data)
+        // Cache the retrieved node for future lookups.
+        this.cache.set(hash, node)
       }
       this.debug.extend('_lookupNode')(`node ${node ? 'found' : 'not found'}`)
       return node ?? null
@@ -88,8 +77,6 @@ export class TrieDB extends MerklePatriciaTrie {
     // Add or update the node in the cache
     this.cache.set(nodeHash, node)
 
-    // Update the nodes map to keep track of modified or added nodes
-    this.nodes.set(nodeHash, node)
     this.debug.extend(`_storeNode`)(
       `key: ${bytesToPrefixedHexString(nodeHash).slice(0, 18)}..., value: (${
         serializedNode.length
@@ -97,17 +84,18 @@ export class TrieDB extends MerklePatriciaTrie {
     )
   }
   async checkpoint(): Promise<void> {
-    this.checkpoints.push(this.root.hash())
+    this.checkpoints.push(bytesToPrefixedHexString(this.root.hash()))
     await this._pruneCheckpoints()
   }
   async commit(): Promise<void> {
     if (this.checkpoints.length > 0) {
       this.checkpoints.pop()
     }
+    await this.garbageCollect()
   }
   async revert(): Promise<void> {
     if (this.checkpoints.length > 0) {
-      const newRoot = await this._lookupNodeByHash(this.checkpoints.pop()!)
+      const newRoot = await this._lookupNodeByHash(hexStringToBytes(this.checkpoints.pop()!))
       if (!newRoot) {
         throw new Error('newRoot is undefined')
       }
@@ -115,7 +103,7 @@ export class TrieDB extends MerklePatriciaTrie {
     }
   }
   async revertTo(checkpoint: Uint8Array): Promise<void> {
-    const index = this.checkpoints.findIndex((cp) => equalsBytes(cp, checkpoint))
+    const index = this.checkpoints.findIndex((cp) => equalsBytes(hexStringToBytes(cp), checkpoint))
     if (index !== -1) {
       const newRoot = await this._lookupNodeByHash(checkpoint)
       if (!newRoot) {
@@ -125,18 +113,30 @@ export class TrieDB extends MerklePatriciaTrie {
     }
   }
   async garbageCollect(): Promise<void> {
-    const reachableHashes = new Set<Uint8Array>()
-    await this._markReachableNodes(this.root, reachableHashes)
-
-    for (const [key, _node] of this.nodes.entries()) {
-      if (!reachableHashes.has(key)) {
-        this.nodes.delete(key)
-      }
+    const reachableHashes = await this._markReachableNodes(this.root)
+    const filter: WalkFilterFunction = async (node: TNode, _key: Uint8Array) => {
+      const nodeHash = node.hash()
+      return (
+        !reachableHashes.has(nodeHash) &&
+        !this.checkpoints.includes(bytesToPrefixedHexString(nodeHash))
+      )
+    }
+    const onFound = async (node: TNode, _key: Uint8Array) => {
+      const nodeHash = node.hash()
+      await this.db.del(nodeHash)
+      this.cache.delete(nodeHash)
+    }
+    const walk = this._walkTrieRecursively(this.root, Uint8Array.from([]), onFound, filter)
+    for await (const node of walk) {
+      this.debug.extend('garbageCollect')(`deleting ${node.getType()}: ${node.hash()}`)
     }
   }
-  async _markReachableNodes(node: TNode | null, reachableHashes: Set<Uint8Array>): Promise<void> {
+  async _markReachableNodes(
+    node: TNode | null,
+    reachableHashes: Set<Uint8Array> = new Set()
+  ): Promise<Set<Uint8Array>> {
     if (node === null) {
-      return
+      return reachableHashes
     }
     reachableHashes.add(node.hash())
     if (node.type === 'BranchNode') {
@@ -146,10 +146,12 @@ export class TrieDB extends MerklePatriciaTrie {
     } else if (node.type === 'ExtensionNode') {
       await this._markReachableNodes(node.child, reachableHashes)
     }
+    return reachableHashes
   }
   async _pruneCheckpoints(): Promise<void> {
     while (this.checkpoints.length > this.maxCheckpoints) {
       this.checkpoints.shift()
     }
+    await this.garbageCollect()
   }
 }
