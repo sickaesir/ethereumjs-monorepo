@@ -4,7 +4,6 @@ import { equalsBytes, utf8ToBytes } from 'ethereum-cryptography/utils'
 import * as tape from 'tape'
 
 import { TrieNode } from '../../../src/trieV2'
-import { Trie } from '../../../src/trieV2/Trie/MMP'
 import { TrieWrap } from '../../../src/trieV2/Trie/trieWrapper'
 
 import type { BranchNode, OnFoundFunction, TNode } from '../../../src/trieV2'
@@ -121,7 +120,7 @@ const runTests = async (testSizes: number[] = [100, 200]) => {
             return
           }
           const proof = await trie.createProof(key, d_bug)
-          const fromProof = await Trie.fromProof(trie.getRootHash(), proof, d_bug)
+          const fromProof = await TrieWrap.fromProof(trie.getRootHash(), proof, d_bug)
           st.deepEqual(
             fromProof.root.hash(),
             trie.getRootHash(),

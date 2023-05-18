@@ -4,7 +4,7 @@ import { equalsBytes } from 'ethereum-cryptography/utils'
 import { BranchNode, ExtensionNode, LeafNode, NullNode } from '../Node'
 import { keyToNibbles, nibblesToKey } from '../util'
 
-import { Trie } from './MMP'
+import { MerklePatriciaTrie } from './MMP'
 
 import type { TNode } from '../types'
 import type { Debugger } from 'debug'
@@ -62,7 +62,7 @@ export async function fromProof(
   rootHash: Uint8Array,
   proof: TNode[],
   d_bug: Debugger = debug('trie')
-): Promise<Trie> {
+): Promise<MerklePatriciaTrie> {
   d_bug = d_bug.extend('fromProof')
   d_bug(`Building Trie from proof`)
   if (!proof.length) {
@@ -72,7 +72,7 @@ export async function fromProof(
   if (!equalsBytes(rootHash, root.hash())) {
     throw new Error('Proof root hash does not match expected root hash')
   }
-  const trie = new Trie({ root })
+  const trie = new MerklePatriciaTrie({ root })
   for (let i = 1; i < proof.length - 1; i++) {
     const node = proof[i]
     const key = nibblesToKey(node.getPartialKey())

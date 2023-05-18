@@ -6,63 +6,39 @@ import { equalsBytes } from 'ethereum-cryptography/utils'
 import { LeafNode } from '../Node'
 import { keyToNibbles, nibblesToKey } from '../util'
 
-import { Trie } from './MMP'
+import { MerklePatriciaTrie } from './MMP'
 
 import type { OnFoundFunction, TNode, WalkFilterFunction } from '../types'
 import type { MerklePatriciaTrieOptions } from './MMP'
 import type { Debugger } from 'debug'
 
-interface ItrieWrap {
-  debug?: Debugger
-  trie?: Trie | undefined
-  secure?: boolean | undefined
-  hashFunction?: (data: Uint8Array) => Uint8Array
-}
-interface TrieWrapFromTrie extends ItrieWrap {
-  trie: Trie
-  secure?: undefined
-}
-interface TrieWrapFromScratch extends ItrieWrap {
-  secure?: boolean
-  trie?: undefined
-}
-
-interface TrieWrapFromTrieOptions extends MerklePatriciaTrieOptions {
-  trie?: undefined
-}
-
-export type TrieWrapOptions = TrieWrapFromTrie | TrieWrapFromScratch | TrieWrapFromTrieOptions
-export class TrieWrap {
+export class TrieWrap extends MerklePatriciaTrie {
   static async fromProof(
     rootHash: Uint8Array,
     proof: TNode[],
     dbug: Debugger = debug('Trie')
   ): Promise<TrieWrap> {
-    dbug = dbug.extend('fromProof')
-    dbug(`Creating trie from proof`)
-    const trie = await Trie.fromProof(rootHash, proof, dbug)
+    const trie = await MerklePatriciaTrie.fromProof(rootHash, proof, dbug)
     return new TrieWrap(trie)
   }
-  static verifyProof = Trie.verifyProof
-  trie: Trie
   debug: Debugger
   _operationMutex: Mutex
   keySecure: (key: Uint8Array) => Uint8Array
 
-  constructor(options: TrieWrapOptions) {
-    this.trie = options.trie ?? new Trie({ secure: options.secure })
+  constructor(options: MerklePatriciaTrieOptions) {
+    super(options)
     this.debug = options.debug ? options.debug.extend('Trie') : debug(`Trie`)
     this._operationMutex = new Mutex()
-    this.keySecure = options.secure === true ? this.trie.hashFunction : (key) => key
+    this.keySecure = options.secure === true ? this.hashFunction : (key) => key
   }
   getRootHash(): Uint8Array {
     return this.getRoot().hash()
   }
   setRoot(root: TNode) {
-    this.trie.root = root
+    this.root = root
   }
   getRoot(): TNode {
-    return this.trie.root
+    return this.root
   }
   public async insert(
     _key: Uint8Array,
@@ -78,11 +54,11 @@ export class TrieWrap {
       debug.extend('ROOT_NODE')(`${this.getRoot().getType()}: ${this.getRoot().getPartialKey()}`)
       debug.extend('keyToNibbles')(`${keyNibbles}`)
       if (_value === null) {
-        const newNode = await this.trie._deleteAtNode(this.getRoot(), keyNibbles, debug)
+        const newNode = await this._deleteAtNode(this.getRoot(), keyNibbles, debug)
         this.setRoot(newNode)
         this.debug.extend(`**ROOT**`)(`${bytesToPrefixedHexString(this.getRootHash())}`)
       } else {
-        const newNode = await this.trie._insertAtNode(
+        const newNode = await this._insertAtNode(
           this.getRoot(),
           keyNibbles,
           _value ?? Uint8Array.from([128]),
@@ -100,7 +76,7 @@ export class TrieWrap {
       const keyNibbles = keyToNibbles(key)
       debug(`deleting key: ${bytesToPrefixedHexString(key)}`)
       debug.extend(`keyToNibbles`)(`${keyNibbles}`)
-      const newNode = await this.trie._deleteAtNode(this.getRoot(), keyNibbles, debug)
+      const newNode = await this._deleteAtNode(this.getRoot(), keyNibbles, debug)
       this.setRoot(newNode)
       debug.extend('NEW_ROOT')(
         `${this.getRoot().getType()}: ${bytesToPrefixedHexString(this.getRootHash())}`
@@ -111,7 +87,7 @@ export class TrieWrap {
     key = this.keySecure(key)
 
     debug = debug.extend('get')
-    const lastNode = await this.trie._getNode(key, debug)
+    const lastNode = await this._getNode(key, debug)
     debug(`Returning: ${lastNode.getValue()}`)
     let value = lastNode.getValue()
     if (value && equalsBytes(value, Uint8Array.from([128]))) {
@@ -162,7 +138,7 @@ export class TrieWrap {
       const key = nibblesToKey(node.getPartialKey())
       debug(`Inserting node at path: ${key}`)
       const value = node.getValue() ?? null
-      root = await this.trie._insertAtNode(root, keyToNibbles(key), value)
+      root = await this._insertAtNode(root, keyToNibbles(key), value)
     }
   }
   async *walkTrie(
@@ -171,7 +147,7 @@ export class TrieWrap {
     onFound: OnFoundFunction = async (_trieNode: TNode, _key: Uint8Array) => {},
     filter: WalkFilterFunction = async (_trieNode: TNode, _key: Uint8Array) => true
   ): AsyncIterable<TNode> {
-    yield* this.trie._walkTrieRecursively(startNode, currentKey, onFound, filter)
+    yield* this._walkTrieRecursively(startNode, currentKey, onFound, filter)
   }
 
   async _withLock<T>(operation: () => Promise<T>): Promise<T> {
