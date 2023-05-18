@@ -1,5 +1,5 @@
 import { hexStringToBytes } from '@ethereumjs/util'
-import debug from 'debug'
+import { debug as _debug } from 'debug'
 import { bytesToHex } from 'ethereum-cryptography/utils'
 import { MemoryLevel } from 'memory-level'
 
@@ -17,17 +17,22 @@ interface Idb {
 }
 
 export class Database implements Idb {
-  static async createAndOpen(): Promise<Database> {
-    const db = new Database()
+  static async createAndOpen(
+    options: {
+      db?: MemoryLevel<string, string>
+      debug?: Debugger
+    } = {}
+  ): Promise<Database> {
+    const db = new Database(options)
     await db.db.open()
     return db
   }
   private readonly db: MemoryLevel<string, string>
   private readonly log: Debugger
 
-  constructor(db?: MemoryLevel<string, string>) {
-    this.db = db ?? (new MemoryLevel({}) as Level<string, string>)
-    this.log = debug('trie:db')
+  constructor(options: { db?: MemoryLevel<string, string>; debug?: Debugger } = {}) {
+    this.db = options.db ?? (new MemoryLevel({}) as Level<string, string>)
+    this.log = options.debug ? options.debug.extend('db') : _debug('trie:db')
   }
 
   async open(): Promise<void> {

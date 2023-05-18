@@ -27,7 +27,7 @@ export class TrieWrap extends TrieDB {
   _operationMutex: Mutex
   keySecure: (key: Uint8Array) => Uint8Array
 
-  constructor(options: TrieWrapOptions) {
+  constructor(options: TrieWrapOptions = {}) {
     super(options)
     this.debug = options.debug ? options.debug.extend('Trie') : debug(`Trie`)
     this._operationMutex = new Mutex()
@@ -42,7 +42,7 @@ export class TrieWrap extends TrieDB {
   getRoot(): TNode {
     return this.root
   }
-  public async insert(
+  public async put(
     _key: Uint8Array,
     _value: Uint8Array | null,
     debug: Debugger = this.debug
@@ -66,6 +66,7 @@ export class TrieWrap extends TrieDB {
           _value ?? Uint8Array.from([128]),
           debug
         )
+        await this._storeNode(newNode)
         this.setRoot(newNode)
         this.debug.extend(`**ROOT**`)(`${bytesToPrefixedHexString(this.getRootHash())}`)
       }
@@ -134,6 +135,7 @@ export class TrieWrap extends TrieDB {
     if (!equalsBytes(rootHash, root.hash())) {
       throw new Error('Proof root hash does not match expected root hash')
     }
+    await this._storeNode(root)
     this.setRoot(root)
     for (let i = 1; i < proof.length; i++) {
       const node = proof[i]
@@ -141,6 +143,7 @@ export class TrieWrap extends TrieDB {
       debug(`Inserting node at path: ${key}`)
       const value = node.getValue() ?? null
       root = await this._insertAtNode(root, keyToNibbles(key), value)
+      await this._storeNode(root)
     }
   }
   async *walkTrie(
@@ -151,7 +154,6 @@ export class TrieWrap extends TrieDB {
   ): AsyncIterable<TNode> {
     yield* this._walkTrieRecursively(startNode, currentKey, onFound, filter)
   }
-
   async _withLock<T>(operation: () => Promise<T>): Promise<T> {
     await this._operationMutex.acquire()
     try {
