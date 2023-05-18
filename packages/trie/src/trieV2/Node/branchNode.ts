@@ -34,7 +34,7 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
 
     const sortedChildren = new Array(16).fill(new NullNode())
     for (const child of children) {
-      if (child.type === 'NullNode') continue
+      if (child === null || child.type === 'NullNode') continue
       const index = child.getPartialKey()[sharedNibbleLength]
       sortedChildren[index] = child
     }
@@ -51,22 +51,45 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
   constructor(options?: TNodeOptions<'BranchNode'>) {
     super(options)
     this.keyNibbles = []
-    this.children = []
-    this.value = null
+    this.children = options?.children ?? []
+    this.value = options?.value ?? null
     this.debug && this.debug(`BranchNode created`)
   }
   getType(): NodeType {
     return 'BranchNode'
   }
 
-  rlpEncode(): Uint8Array {
-    const children = this.getChildren()
-    const childrenRlp: Uint8Array[] = Array.from({ length: 16 }, () => new NullNode().rlpEncode())
-
-    for (const [idx, child] of children.entries()) {
-      childrenRlp[idx] = child.rlpEncode()
+  encodeChild(child: TNode | undefined): Uint8Array | Uint8Array[] {
+    if (child === undefined) return Uint8Array.from([])
+    switch (child.getType()) {
+      case 'BranchNode':
+        return child.rlpEncode().length >= 32 ? child.hash() : (child.raw() as Uint8Array[])
+      case 'LeafNode':
+        // return child.hash()
+        return child.rlpEncode().length >= 32 ? child.hash() : (child.raw() as Uint8Array[])
+      case 'ExtensionNode':
+        return child.rlpEncode().length >= 32 ? child.hash() : (child.raw() as Uint8Array[])
+      case 'NullNode':
+      default:
+        return Uint8Array.from([])
     }
-    const encodedNode = RLP.encode([...childrenRlp, this.value ?? Uint8Array.from([])])
+  }
+  childrenRlp(): (Uint8Array | Uint8Array[])[] {
+    const children: (Uint8Array | Uint8Array[])[] = Array.from({ length: 16 }, (_, _i) => {
+      return Uint8Array.from([])
+    })
+    for (const [idx, child] of this.children.entries()) {
+      children[idx] = this.encodeChild(child)
+    }
+    return children
+  }
+  raw(): any {
+    const childrenRlp = this.childrenRlp()
+    // this.debug!.extend('raw')([...[...childrenRlp, this.value].entries()])
+    return [...childrenRlp, this.value ?? Uint8Array.from([])]
+  }
+  rlpEncode(): Uint8Array {
+    const encodedNode = RLP.encode(this.raw())
     return encodedNode
   }
 
@@ -76,30 +99,46 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
   }
   getChildren(): Map<number, TNode> {
     const children: Map<number, TNode> = new Map()
-    for (const [idx, child] of this.children.entries()) {
-      if (child && child.type !== 'NullNode') {
-        children.set(idx, child)
+    for (let i = 0; i < 16; i++) {
+      const child = this.children[i]
+      if (child === undefined || child.getType() !== 'NullNode') {
+        continue
       }
+      children.set(i, child)
     }
     return children
   }
   getChild(key: number): TNode | undefined {
     return this.children[key]
   }
+  childNodes(): Map<number, TNode> {
+    const children: Map<number, TNode> = new Map()
+    for (let i = 0; i < 16; i++) {
+      const child = this.children[i]
+      if (child !== undefined && child.getType() !== 'NullNode') {
+        children.set(i, child)
+      }
+    }
+    return children
+  }
   updateChild(newChild: TNode, nibble: Nibble): TNode {
     const curHash = this.hash()
-    this.children[nibble] = newChild
+    this.children[nibble] = newChild.getType() === 'NullNode' ? undefined : newChild
     if (this.debug) {
-      this.debug.extend('updateChild')(`new child on branch:${nibble}`)
-      this.debug.extend('updateChild').extend(`${nibble}`)(`keyNibbles:${newChild.getPartialKey()}`)
-      this.debug.extend('updateChild')(`oldHash=${bytesToPrefixedHexString(curHash)}`)
-      this.debug.extend('updateChild')(`newHash=${bytesToPrefixedHexString(this.hash())}`)
+      this.debug.extend('updateChild')(
+        `updating child on branch:${nibble} to ${newChild.getType()}`
+      )
+      this.debug.extend('updateChild').extend(`${nibble}`)(
+        `keyNibbles(${newChild.getPartialKey().length}):${newChild.getPartialKey()}`
+      )
+      // this.debug.extend('updateChild')(`oldHash=${bytesToPrefixedHexString(curHash)}`)
+      // this.debug.extend('updateChild')(`newHash=${bytesToPrefixedHexString(this.hash())}`)
     }
-    return this
+    return new BranchNode({ children: this.children, value: this.value })
   }
-  async deleteChild(nibble: Nibble) {
+  async deleteChild(nibble: Nibble): Promise<TNode> {
     const children = this.children
-    children[nibble] = new NullNode()
+    children[nibble] = undefined
     return new BranchNode({ children, value: this.value })
   }
   async updateValue(value: Uint8Array | null) {
@@ -111,20 +150,20 @@ export class BranchNode extends BaseNode implements NodeInterface<'BranchNode'> 
     this.updateChild(node, slot)
     return this
   }
-  getValue(): Uint8Array | undefined {
-    return this.value ?? undefined
+  getValue(): Uint8Array | null {
+    return this.value
   }
   getPartialKey(): Nibble[] {
     return this.keyNibbles
   }
-  updateKey(newKeyNibbles: number[]): TNode {
-    if (this.value) {
-      // If the BranchNode has a value, it should be converted to a LeafNode
-      return new LeafNode({ key: newKeyNibbles, value: this.value })
-    } else {
-      // If the BranchNode has no value, it should be converted to an ExtensionNode
-      return new ExtensionNode({ keyNibbles: newKeyNibbles, subNode: this })
-    }
+  async updateKey(newKeyNibbles: number[]): Promise<TNode> {
+    // if (this.value) {
+    // If the BranchNode has a value, it should be converted to a LeafNode
+    //   return new LeafNode({ key: newKeyNibbles, value: this.value })
+    // } else {
+    // If the BranchNode has no value, it should be converted to an ExtensionNode
+    return new ExtensionNode({ keyNibbles: newKeyNibbles, subNode: this })
+    // }
   }
   async get(_rawKey: Uint8Array): Promise<Uint8Array | null> {
     throw new Error('Method to be removed.')

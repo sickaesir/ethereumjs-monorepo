@@ -1,5 +1,6 @@
 import { bytesToPrefixedHexString } from '@ethereumjs/util'
 import debug from 'debug'
+import { keccak256 } from 'ethereum-cryptography/keccak'
 
 import { BranchNode, ExtensionNode, LeafNode, NullNode } from '../Node'
 import {
@@ -34,30 +35,35 @@ export class Trie {
   }
   root: TNode
   debug: Debugger
-  constructor(root?: TNode) {
+  hashFunction: (data: Uint8Array) => Uint8Array
+  secure?: boolean
+  constructor(root?: TNode, secure?: boolean, hashFunction?: (data: Uint8Array) => Uint8Array) {
     this.root = root ?? new NullNode()
     this.debug = debug(`Trie`)
+    this.secure = secure
+    this.hashFunction = hashFunction ?? keccak256
   }
-  async _getNode(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode | null> {
-    debug = debug.extend('get')
+  appliedKey(key: Uint8Array) {
+    if (this.secure === true) {
+      return this.hashFunction(key)
+    }
+    return key
+  }
+  async _getNode(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode> {
+    // key = this.appliedKey(key)
+    debug = debug.extend('_getNode')
     debug(`getting value for key: ${bytesToPrefixedHexString(key)}`)
     debug(`keyToNibbles: ${keyToNibbles(key)}`)
     const { node: lastNode, remainingNibbles } = await this._walkTrie(key, debug)
     debug(`${lastNode.getType()} found`)
-    debug(`[${remainingNibbles}]`)
-    'value' in lastNode && debug.extend('VALUE')(`[${lastNode.getValue() ?? null}]`)
-    if (remainingNibbles.length === 0) {
-      if (lastNode.type === 'LeafNode' || (lastNode.type === 'BranchNode' && lastNode.value)) {
-        debug(`returning value: ${lastNode.getValue()} for key: ${key}`)
-        return lastNode
-      }
-    }
+    debug(`remaining nibbles: [${remainingNibbles}]`)
+    debug(`returning: ${lastNode.getType()} for key: ${key}`)
     return lastNode
   }
   async _insertAtNode(
     node: TNode,
     keyNibbles: number[],
-    value: Uint8Array,
+    value: Uint8Array | null,
     debug: Debugger = this.debug
   ): Promise<TNode> {
     const type = node.type ?? 'NullNode'
@@ -67,38 +73,69 @@ export class Trie {
     const _insert: {
       [type in NodeType]: () => Promise<TNode>
     } = {
-      NullNode: async (): Promise<TNode> => {
+      NullNode: async (): Promise<LeafNode> => {
         debug(`inserting into NullNode`)
         return new LeafNode({ key: keyNibbles, value })
       },
       LeafNode: async (): Promise<TNode> => {
-        const leafNode = node as LeafNode
-        const leafKeyNibbles = leafNode.getPartialKey()
+        const toReplace = node as LeafNode
+        const toReplaceNibbles = toReplace.getPartialKey()
         const { commonPrefix, remainingNibbles1, remainingNibbles2 } = findCommonPrefix(
           keyNibbles,
-          leafKeyNibbles
+          toReplaceNibbles
         )
         const remainingNibblesNew = remainingNibbles1
         const remainingNibblesOld = remainingNibbles2
-        const newLeafIdx = remainingNibblesNew[0]!
         if (remainingNibblesNew.length === 0 && remainingNibblesOld.length === 0) {
           debug(`inserting into LeafNode with same key`)
           return new LeafNode({ key: keyNibbles, value })
         } else {
           debug(`inserting into LeafNode with different key`)
-          debug(
-            `splitting LeafNode into BranchNode with children on branches ${newLeafIdx} and ${remainingNibblesOld[0]}`
-          )
+          debug(`remainingNibblesOld: [${remainingNibblesOld}]`)
+          debug(`remainingNibblesNew: [${remainingNibblesNew}]`)
           const branchNode = new BranchNode()
-          branchNode.setChild(
-            newLeafIdx,
-            new LeafNode({ key: remainingNibblesNew.slice(1), value })
-          )
-          branchNode.setChild(remainingNibbles2[0], leafNode.updateKey(remainingNibbles2.slice(1)))
+          if (remainingNibblesOld.length === 0) {
+            debug(
+              `splitting LeafNode into BranchNode with child on branch ${remainingNibblesNew[0]}`
+            )
+            await branchNode.updateValue(toReplace.getValue())
+            branchNode.setChild(
+              remainingNibblesNew[0],
+              new LeafNode({ key: remainingNibblesNew.slice(1), value })
+            )
+          } else if (remainingNibblesNew.length === 0) {
+            debug(
+              `splitting LeafNode into BranchNode with child on branch ${remainingNibblesOld[0]}`
+            )
+            await branchNode.updateValue(value)
+            branchNode.setChild(
+              remainingNibblesOld[0],
+              new LeafNode({ key: remainingNibblesOld.slice(1), value: toReplace.getValue() })
+            )
+          } else {
+            debug(
+              `splitting LeafNode into BranchNode with children on branches ${remainingNibblesNew[0]} and ${remainingNibblesOld[0]}`
+            )
+            debug.extend('BranchNode')(
+              `[${remainingNibblesOld[0]}] [${remainingNibblesOld.slice(1)}]`
+            )
+            debug.extend('BranchNode')(
+              `[${remainingNibblesNew[0]}] [${remainingNibblesNew.slice(1)}]`
+            )
+            branchNode.setChild(
+              remainingNibblesOld[0],
+              await toReplace.updateKey(remainingNibblesOld.slice(1))
+            )
+            branchNode.setChild(
+              remainingNibblesNew[0],
+              new LeafNode({ key: remainingNibblesNew.slice(1), value })
+            )
+          }
           // If there's a common prefix, create an extension node.
           if (commonPrefix.length > 0) {
-            debug(`inserting as ExtensionNode: ${commonPrefix} with new branchNode as child`)
-            return new ExtensionNode({ keyNibbles: commonPrefix, subNode: branchNode })
+            debug.extend(`ExtensionNode`)(`inserting with keyNibbles: [${commonPrefix}]`)
+            const extension = new ExtensionNode({ keyNibbles: commonPrefix, subNode: branchNode })
+            return this._cleanupNode(extension)
           } else {
             debug(`inserting as new branchNode`)
             return branchNode
@@ -128,6 +165,13 @@ export class Trie {
         const extensionNode = node as ExtensionNode
         const sharedNibbles = getSharedNibbles(keyNibbles, extensionNode.getPartialKey())
         if (sharedNibbles.length === extensionNode.getPartialKey().length) {
+          if (sharedNibbles.length === keyNibbles.length) {
+            debug(
+              `shared nibbles: ${sharedNibbles} match entirely and are same length.  update child value.`
+            )
+            const newChild = await extensionNode.child.updateValue(value)
+            return extensionNode.updateChild(newChild)
+          }
           debug(`shared nibbles: ${sharedNibbles} match entirely.  update child.`)
           const newChild = await this._insertAtNode(
             extensionNode.child,
@@ -141,18 +185,20 @@ export class Trie {
           debug(`shared nibbles: ${sharedNibbles} do not match entirely.`)
           const remainingOldNibbles = node.getPartialKey().slice(sharedNibbles.length)
           const remainingNewNibbles = keyNibbles.slice(sharedNibbles.length)
+          debug(`remainingOldNibbles: [${remainingOldNibbles}]`)
+          debug(`remainingNewNibbles: [${remainingNewNibbles}]`)
           const oldBranchNodeIndex = remainingOldNibbles.shift()!
           const newLeafNodeIndex = remainingNewNibbles.shift()!
           const newLeafNode = new LeafNode({ key: remainingNewNibbles, value })
-          const newExtensionNode = new ExtensionNode({
-            keyNibbles: remainingOldNibbles,
-            subNode: extensionNode.child,
-          })
           const newBranchNode = new BranchNode()
           debug(
             `splitting ExtensionNode into BranchNode with children on branches ${newLeafNodeIndex} and ${oldBranchNodeIndex}`
           )
           if (remainingOldNibbles.length > 0) {
+            const newExtensionNode = new ExtensionNode({
+              keyNibbles: remainingOldNibbles,
+              subNode: extensionNode.child,
+            })
             debug(
               `inserting as ExtensionNode: ${remainingOldNibbles} with new extensionNode as child`
             )
@@ -165,6 +211,7 @@ export class Trie {
             debug(`inserting as ExtensionNode: ${sharedNibbles} with new branchNode as child`)
             return new ExtensionNode({ keyNibbles: sharedNibbles, subNode: newBranchNode })
           } else {
+            newBranchNode.value = (extensionNode.child as any).value
             debug(`inserting as new branchNode`)
             return newBranchNode
           }
@@ -174,12 +221,16 @@ export class Trie {
         throw new Error('method not implemented')
       },
     }
-    const inserted = await _insert[type]()
-    return this._cleanupNode(inserted, debug)
+    const preCleanup = await _insert[type]()
+    const newRoot = await this._cleanupNode(preCleanup, debug)
+    debug.extend('NEW_ROOT')(bytesToPrefixedHexString(newRoot.hash()))
+    return newRoot
   }
   async _deleteAtNode(_node: TNode, _keyNibbles: number[], debug: Debugger = this.debug) {
     debug = debug.extend('_deleteAtNode')
-    debug.extend(_node.getType())(`Deleting node: ${_keyNibbles}`)
+    debug.extend(_node.getType())(
+      `Seeking Node to DELETE: (${_keyNibbles.length}) [${_keyNibbles}]`
+    )
     const d: {
       [type in NodeType]: () => Promise<TNode>
     } = {
@@ -189,7 +240,7 @@ export class Trie {
       LeafNode: async () => {
         const leafNode = _node as LeafNode
         if (nibblesEqual(leafNode.getPartialKey(), _keyNibbles)) {
-          debug(`found leaf node to delete`)
+          debug(`found leaf node to delete, replacing with null`)
           return new NullNode()
         } else {
           return new NullNode()
@@ -198,9 +249,14 @@ export class Trie {
       ExtensionNode: async () => {
         const extensionNode = _node as ExtensionNode
         const sharedNibbles = getSharedNibbles(_keyNibbles, extensionNode.getPartialKey())
-        debug('nativagating from extension node into child node')
+        debug('')
         if (sharedNibbles.length === extensionNode.getPartialKey().length) {
-          debug(`shared nibbles: ${sharedNibbles} match entirely.  delete child.`)
+          debug(`shared nibbles match entirely.  nativagating from extension node into child node`)
+          debug(
+            `shared (${sharedNibbles.length}): [${sharedNibbles}] remaining: (${
+              _keyNibbles.slice(sharedNibbles.length).length
+            })[${_keyNibbles.slice(sharedNibbles.length)}]`
+          )
           const newChild = await this._deleteAtNode(
             extensionNode.child,
             _keyNibbles.slice(sharedNibbles.length),
@@ -214,11 +270,23 @@ export class Trie {
       },
       BranchNode: async () => {
         const branchNode = _node as BranchNode
-        const childIndex = _keyNibbles.shift()!
-        debug(`navigating from BranchNode into childnode at index ${childIndex}`)
+        const childIndex = _keyNibbles[0]!
         const childNode = branchNode.getChild(childIndex)
         if (childNode) {
-          const updatedChildNode = await this._deleteAtNode(childNode, _keyNibbles, debug)
+          debug(`navigating from BranchNode into childnode at index ${childIndex}`)
+          debug(
+            `index: (1) [${childIndex}] remaining: (${
+              _keyNibbles.slice(1).length
+            }) [${_keyNibbles.slice(1)}]`
+          )
+          if (childNode.getType() === 'LeafNode') {
+            if (nibblesEqual(childNode.getPartialKey(), _keyNibbles)) {
+              debug(`found leaf node to delete, replacing with null`)
+              branchNode.setChild(childIndex, new NullNode())
+              return branchNode
+            }
+          }
+          const updatedChildNode = await this._deleteAtNode(childNode, _keyNibbles.slice(1), debug)
           branchNode.updateChild(updatedChildNode, childIndex)
           return branchNode
         } else {
@@ -250,13 +318,14 @@ export class Trie {
       let keySharedNibbles: number[]
       switch (currentNode.type) {
         case 'BranchNode':
+          childIndex = keyNibbles[nibbleIndex]
+          if (childIndex === undefined) {
+            debug.extend(currentNode.getType())(`Child index is undefined, returning`)
+            return { node: currentNode as BranchNode, remainingNibbles: [] }
+          }
           debug.extend(currentNode.getType())(
             `Searching for child at index ${keyNibbles[nibbleIndex]}`
           )
-          childIndex = keyNibbles[nibbleIndex]
-          if (childIndex === undefined) {
-            return { node: currentNode as BranchNode, remainingNibbles: [] }
-          }
           childNode = (currentNode as BranchNode).getChild(childIndex)
           debug.extend(currentNode.getType())(
             `Found ${childNode?.getType()}: ${childNode?.getPartialKey()} at index ${childIndex}`
@@ -277,6 +346,10 @@ export class Trie {
           if (nibblesEqual(sharedNibbles, keySharedNibbles)) {
             debug.extend(currentNode.getType())(`Shared nibbles match entirely.`)
             nibbleIndex += sharedNibbles.length
+            if (nibbleIndex === keyNibbles.length) {
+              debug.extend(currentNode.getType())(`Reached end of key.`)
+              return { node: currentNode.child, remainingNibbles: [] }
+            }
             currentNode = (currentNode as ExtensionNode).child
           } else {
             debug.extend(currentNode.getType())(`Shared nibbles do not match.`)
@@ -306,30 +379,96 @@ export class Trie {
   async _cleanupNode(node: TNode, debug: Debugger = this.debug): Promise<TNode> {
     debug = debug.extend('_cleanupNode')
     debug(`Cleaning up node: ${node.getType()}`)
+    debug(`keyNibbles: ${node.getPartialKey()}`)
     // If the node is a branch node, check the number of children.
     if (node instanceof BranchNode) {
+      debug = debug.extend('BranchNode')
+      if (node.childNodes().size === 0) {
+        debug(`Branch node has no children, converting to LeafNode`)
+        return new LeafNode({
+          key: node.keyNibbles,
+          value: node.value,
+        })
+      }
       // If there's only one child, replace the branch node with that child.
-      if (node.getChildren().size === 1) {
-        const [idx, _child] = node.getChildren().entries().next().value
-        let child = _child
-        // If the child is a leaf or another branch node, we concatenate the
-        // key nibbles of the branch node and the child.
-        if (child instanceof LeafNode || child instanceof BranchNode) {
-          child = child.updateKey([idx, ...node.getPartialKey(), ...child.getPartialKey()])
-        }
-
-        // If the child is an extension node, we simply append the branch node's
-        // key nibbles to the beginning of the extension node's key nibbles.
-        else if (child instanceof ExtensionNode) {
-          child = new ExtensionNode({
-            keyNibbles: [idx, ...node.getPartialKey(), ...child.getPartialKey()],
-            subNode: child.child,
+      if (node.childNodes().size === 1 && node.value === null) {
+        const c = node.childNodes().entries().next().value
+        debug(`Branch node has only one child, replacing with child: ${c[0]}: ${c[1].getType()}`)
+        const [idx, _child] = c as [number, TNode]
+        debug(`updating key of child [${idx}] + [${_child.getPartialKey()}]`)
+        const replace = await _child.updateKey([idx, ..._child.getPartialKey()])
+        debug.extend(`${replace.getType()}`)(`updated key: [${replace.getPartialKey()}]`)
+        return this._cleanupNode(replace)
+        // const compacted = new ExtensionNode({
+        //   keyNibbles: [idx],
+        //   subNode: _child,
+        //   value: node.value,
+        // })
+        // return this._cleanupNode(compacted)
+      } else {
+        debug(`Branch node has ${node.childNodes().size} children, returning`)
+        return node
+      }
+    } else if (node instanceof ExtensionNode) {
+      debug = debug.extend('ExtensionNode')
+      // If the node is an extension node, we check if the child is a leaf node
+      // or another extension node.
+      const child = node.child
+      if (child instanceof LeafNode) {
+        debug(`Child is a leaf node.  Replacing Extension with LeafNode with concatenated key`)
+        debug(
+          `(${node.getPartialKey().length})[${node.getPartialKey()}] + (${
+            child.getPartialKey().length
+          })[${child.getPartialKey()}]`
+        )
+        // If the child is a leaf node, we concatenate the key nibbles of the
+        // extension node and the child.
+        return new LeafNode({
+          key: [...node.getPartialKey(), ...child.getPartialKey()],
+          value: child.value,
+        })
+      } else if (child instanceof ExtensionNode) {
+        debug(`Child is an extension node.  Converting to ExtensionNode with concatenated key`)
+        debug(
+          `(${node.getPartialKey().length})[${node.getPartialKey()}] + (${
+            child.getPartialKey().length
+          })[${child.getPartialKey()}]`
+        )
+        // If the child is an extension node, we concatenate the key nibbles of
+        // the extension node and the child.
+        const subNode = await this._cleanupNode(child.child)
+        const extension = new ExtensionNode({
+          keyNibbles: [...node.getPartialKey(), ...child.getPartialKey()],
+          subNode,
+        })
+        return this._cleanupNode(extension)
+      } else if (child instanceof BranchNode && child.value === null) {
+        if (child.childNodes().size === 1) {
+          const [k, childNode] = child.childNodes().entries().next().value
+          const subNode = await this._cleanupNode(childNode)
+          if (subNode instanceof LeafNode) {
+            debug(
+              `Child is a branch node with one LeafNode child, converting ExtensionNode to ${subNode.getType()}`
+            )
+            debug.extend('LeafNode')(`
+            keyNibbles: [${[...node.getPartialKey(), k, ...subNode.getPartialKey()]}]`)
+            return new LeafNode({
+              key: [...node.getPartialKey(), k, ...subNode.getPartialKey()],
+              value: subNode.value,
+            })
+          }
+          const extension = new ExtensionNode({
+            keyNibbles: node.getPartialKey(),
+            subNode,
           })
+          return this._cleanupNode(extension)
+        } else if (child.childNodes().size === 0 && child.value === null) {
+          debug(`Child is a branch node with no children and no value, converting to NullNode`)
+          return new NullNode()
+        } else {
+          debug(`Child is a branch node with more than one child, returning`)
+          return node
         }
-
-        // After cleaning up, there may be more nodes that can be pruned. We
-        // repeat the cleanup process until there are no more nodes to prune.
-        return this._cleanupNode(child)
       }
     }
 
@@ -340,7 +479,7 @@ export class Trie {
 
   async *_walkTrieRecursively(
     node: TNode | null,
-    currentKey: Uint8Array = new Uint8Array(),
+    currentKey: Uint8Array = Uint8Array.from([]),
     onFound: OnFoundFunction = async (_trieNode: TNode, _key: Uint8Array) => {},
     filter: WalkFilterFunction = async (_trieNode: TNode, _key: Uint8Array) => true
   ): AsyncIterable<TNode> {

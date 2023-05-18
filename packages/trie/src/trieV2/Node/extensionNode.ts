@@ -1,14 +1,14 @@
 import { RLP } from '@ethereumjs/rlp'
-import { equalsBytes } from '@ethereumjs/util'
-import { keccak256 } from 'ethereum-cryptography/keccak'
+import { bytesToPrefixedHexString, equalsBytes } from '@ethereumjs/util'
 
+import { addHexPrefix } from '../../util/hex'
+import { nibblestoBytes } from '../../util/nibbles'
 import {
   concatNibbles,
   decodeNibbles,
   encodeNibbles,
   hasMatchingNibbles,
   matchingNibbleLength,
-  nibblesToKey,
 } from '../index'
 
 import { BaseNode, BranchNode, LeafNode, NullNode } from './index'
@@ -25,20 +25,43 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
     this.keyNibbles = options.keyNibbles
     this.child = options.subNode
     this.debug &&
-      this.debug(`Created with keyNibbles=${this.keyNibbles}, child=${this.child.getType()}`)
+      this.debug(
+        `Created with keyNibbles(${this.keyNibbles.length})=${
+          this.keyNibbles
+        }, child={${this.child.getType()}: [${this.child.getPartialKey()}]} `
+      )
+    this.debug && this.debug(bytesToPrefixedHexString(this.hash()))
   }
-
+  prefixedNibbles(): Nibble[] {
+    const nibbles = this.keyNibbles
+    return addHexPrefix(nibbles, false)
+  }
+  encodedKey(): Uint8Array {
+    return nibblestoBytes(this.prefixedNibbles())
+  }
+  encodedChild() {
+    switch (this.child.getType()) {
+      case 'BranchNode':
+        return this.child.rlpEncode().length >= 32 ? this.child.hash() : this.child.raw()
+      case 'LeafNode':
+        return this.child.rlpEncode().length >= 32 ? this.child.hash() : this.child.raw()
+      case 'ExtensionNode':
+        return this.child.rlpEncode().length >= 32 ? this.child.hash() : this.child.raw()
+      case 'NullNode':
+        return null
+      default:
+        throw new Error('Invalid node type')
+    }
+  }
+  raw(): (Uint8Array | Uint8Array[])[] {
+    return [this.encodedKey(), this.encodedChild()]
+  }
   rlpEncode(): Uint8Array {
-    const encodedNode = RLP.encode([nibblesToKey(this.keyNibbles), this.child.rlpEncode()])
-    return encodedNode
+    return RLP.encode(this.raw())
   }
-
   hash(): Uint8Array {
-    const encodedNode = this.rlpEncode()
-    const hashed = keccak256(encodedNode)
-    return hashed
+    return this.hashFunction(this.rlpEncode())
   }
-
   getChildren(): Map<number, TNode> {
     return new Map().set(0, this.child)
   }
@@ -51,6 +74,10 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
   async deleteChild(_nibble: number): Promise<TNode> {
     return new NullNode()
   }
+  async updateKey(newKey: Nibble[]): Promise<TNode> {
+    this.keyNibbles = newKey
+    return this
+  }
   updateChild(newNode: TNode): TNode {
     if (equalsBytes(newNode.hash(), this.child.hash())) {
       return this
@@ -62,15 +89,12 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
     const updatedNode = new ExtensionNode({ keyNibbles: newKeyNibbles, subNode: newNode })
     return updatedNode
   }
-  async updateValue(_newValue: Uint8Array): Promise<TNode> {
-    return this
+  async updateValue(_newValue: Uint8Array | null): Promise<TNode> {
+    throw new Error('method does not exist')
   }
-  updateKey(_newKey: Nibble[]): TNode {
-    this.keyNibbles = _newKey
-    return this
-  }
-  getValue(): Uint8Array | undefined {
-    return undefined
+
+  getValue(): Uint8Array | null {
+    throw new Error('method does not exist')
   }
   getPartialKey(): Nibble[] {
     return this.keyNibbles
@@ -79,14 +103,14 @@ export class ExtensionNode extends BaseNode implements NodeInterface<'ExtensionN
     throw new Error('method to be deleted')
   }
 
-  async update(value: Uint8Array): Promise<TNode> {
+  async update(value: Uint8Array): Promise<Exclude<TNode, NullNode>> {
     this.debug && this.debug.extend('update')(`value=${value}`)
     const key = this.getPartialKey()
     const matching = matchingNibbleLength(this.keyNibbles, key)
 
     // If the entire key matches
     if (matching === this.keyNibbles.length && matching === key.length) {
-      const updatedChild = await this.child.update(value)
+      const updatedChild: Exclude<TNode, NullNode> = await this.child.update(value)
       return new ExtensionNode({ keyNibbles: this.keyNibbles, subNode: updatedChild })
     }
 

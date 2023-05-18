@@ -41,17 +41,19 @@ export async function verifyProof(
     d_bug.extend('LeafNode')(`Proof verification successful for key: ${key}`)
     return node.getValue() ?? null
   } else if (node instanceof NullNode) {
-    d_bug.extend('NullNode')(`null Proof verification successful for key: ${key}`)
-    return null
+    throw new Error('maybe this should throw?')
   } else if (node instanceof ExtensionNode) {
     d_bug.extend('ExtensionNode')(`Proof verification successful for key: ${key}`)
     return node.child.getValue() ?? null
   } else if (node instanceof BranchNode) {
     if (path.length === 0) {
       return node.getValue() ?? null
+    } else if (node.getChild(path[0])) {
+      d_bug.extend('BranchNode')(`Proof verification successful for key: ${key}`)
+      return node.getChild(path[0])!.getValue() ?? null
+    } else {
+      return false
     }
-    d_bug.extend('BranchNode')(`Proof verification successful for key: ${key}`)
-    return node.getChild(path[0])?.getValue() ?? null
   } else {
     return false
   }
@@ -74,8 +76,9 @@ export async function fromProof(
   for (let i = 1; i < proof.length - 1; i++) {
     const node = proof[i]
     const key = nibblesToKey(node.getPartialKey())
+    const value = node.getValue() ?? null
     d_bug(`Inserting node at path: ${key}`)
-    root = await trie._insertAtNode(root, keyToNibbles(key), node.getValue() ?? new Uint8Array())
+    root = await trie._insertAtNode(root, keyToNibbles(key), value)
   }
   return trie
 }

@@ -27,8 +27,8 @@ export class TrieWrap {
   debug: Debugger
   _operationMutex: Mutex
 
-  constructor(trie?: Trie) {
-    this.trie = trie ?? new Trie()
+  constructor(trie?: Trie, secure?: boolean) {
+    this.trie = trie ?? new Trie(undefined, secure)
     this.debug = debug(`Trie`)
     this._operationMutex = new Mutex()
   }
@@ -43,20 +43,35 @@ export class TrieWrap {
   }
   public async insert(
     _key: Uint8Array,
-    _value: Uint8Array,
+    _value: Uint8Array | null,
     debug: Debugger = this.debug
   ): Promise<void> {
+    _key = this.trie.appliedKey(_key)
     await this._withLock(async () => {
       debug = debug.extend('insert')
       const keyNibbles = keyToNibbles(_key)
       debug(`inserting new key/value node`)
+      debug(`keyNibbles: [${keyNibbles}]`)
+      debug.extend('ROOT_NODE')(`${this.getRoot().getType()}: ${this.getRoot().getPartialKey()}`)
       debug.extend('keyToNibbles')(`${keyNibbles}`)
-      const newNode = await this.trie._insertAtNode(this.getRoot(), keyNibbles, _value, debug)
-      this.setRoot(newNode)
-      this.debug.extend(`**ROOT**`)(`${bytesToPrefixedHexString(this.getRootHash())}`)
+      if (_value === null) {
+        const newNode = await this.trie._deleteAtNode(this.getRoot(), keyNibbles, debug)
+        this.setRoot(newNode)
+        this.debug.extend(`**ROOT**`)(`${bytesToPrefixedHexString(this.getRootHash())}`)
+      } else {
+        const newNode = await this.trie._insertAtNode(
+          this.getRoot(),
+          keyNibbles,
+          _value ?? Uint8Array.from([128]),
+          debug
+        )
+        this.setRoot(newNode)
+        this.debug.extend(`**ROOT**`)(`${bytesToPrefixedHexString(this.getRootHash())}`)
+      }
     })
   }
   public async delete(key: Uint8Array, debug: Debugger = this.debug): Promise<void> {
+    key = this.trie.appliedKey(key)
     await this._withLock(async () => {
       debug = debug.extend('delete')
       const keyNibbles = keyToNibbles(key)
@@ -70,11 +85,19 @@ export class TrieWrap {
     })
   }
   public async get(key: Uint8Array, debug: Debugger = this.debug): Promise<Uint8Array | null> {
+    key = this.trie.appliedKey(key)
+
     debug = debug.extend('get')
     const lastNode = await this.trie._getNode(key, debug)
-    return lastNode?.getValue() ?? null
+    debug(`Returning: ${lastNode.getValue()}`)
+    let value = lastNode.getValue()
+    if (value && equalsBytes(value, Uint8Array.from([128]))) {
+      value = null
+    }
+    return value
   }
   async createProof(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode[]> {
+    key = this.trie.appliedKey(key)
     debug = debug.extend('createProof')
     debug(`Creating proof for key: ${key}`)
     const path = keyToNibbles(key)
@@ -115,11 +138,8 @@ export class TrieWrap {
       const node = proof[i]
       const key = nibblesToKey(node.getPartialKey())
       debug(`Inserting node at path: ${key}`)
-      root = await this.trie._insertAtNode(
-        root,
-        keyToNibbles(key),
-        node.getValue() ?? new Uint8Array()
-      )
+      const value = node.getValue() ?? null
+      root = await this.trie._insertAtNode(root, keyToNibbles(key), value)
     }
   }
   async *walkTrie(

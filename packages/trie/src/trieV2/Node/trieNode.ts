@@ -1,12 +1,13 @@
 import { RLP } from '@ethereumjs/rlp'
 import debug from 'debug'
-import { equalsBytes } from 'ethereum-cryptography/utils'
 
-import { decodeNibbles, keyToNibbles } from '..'
+import { bytesToNibbles, keyToNibbles } from '..'
+import { removeHexPrefix } from '../../util/hex'
 
 import { BranchNode, ExtensionNode, LeafNode, NullNode } from './index'
 
 import type { NodeFromOptions, NodeType, TNode, TOpts } from '..'
+import type { Input } from '@ethereumjs/rlp'
 import type { Debugger } from 'debug'
 
 export class TrieNode {
@@ -28,20 +29,23 @@ export class TrieNode {
     d_bug: Debugger = debug('Trie:decodeToNode')
   ): Promise<TNode> {
     d_bug(`encoded=${encoded}`)
-    if (equalsBytes(encoded, RLP.encode(Uint8Array.from([])))) {
+    if (this._rlpDecode(encoded).length === 0) {
       d_bug(`node=NullNode`)
       return new NullNode()
     } else {
-      const raw = RLP.decode(encoded)
+      const raw = RLP.decode(encoded) as Uint8Array[]
       const type = TrieNode._type(encoded as any)
       d_bug(`encoded=${encoded.length} type=${type} raw=${raw.length}`)
       // TODO: refactor from switch to map
       switch (type) {
         case 'LeafNode': {
-          const [key, value] = raw
+          const [encodedkey, value] = raw
+          const decodedkey = bytesToNibbles(encodedkey as Uint8Array)
+          const key = removeHexPrefix(decodedkey)
+          // const key = decodedkey
           d_bug.extend('LeafNode')(`key=${key}, value=${value}`)
           return TrieNode.create({
-            key: decodeNibbles(key as Uint8Array),
+            key,
             value: value as Uint8Array,
           })
         }
@@ -50,16 +54,16 @@ export class TrieNode {
           const branches = raw.slice(0, 16)
           d_bug.extend('BranchNode')(`branches=${branches.length}, value=${value}`)
           const children: TNode[] = []
-          for (let i = 0; i < raw.length; i++) {
+          for (let i = 0; i < raw.length - 1; i++) {
             const branch = raw[i] as Uint8Array
-            if (branch.length > 1) {
+            if (this._rlpDecode(branch).length > 0) {
               const node = await TrieNode.decodeToNode(branch, d_bug)
               children.push(node)
             }
           }
           return TrieNode.create({
             children,
-            value: value.length > 0 ? value : null,
+            value,
           })
         }
         case 'ExtensionNode': {
@@ -67,28 +71,42 @@ export class TrieNode {
           debug(`TrieNode.decodeToNode`).extend('ExtensionNode')(
             `key=${key}, subNodeRlp=${subNodeRlp}`
           )
-          const subNode = await TrieNode.decodeToNode(subNodeRlp as Uint8Array)
+          const subNode = (await TrieNode.decodeToNode(subNodeRlp as Uint8Array)) as Exclude<
+            TNode,
+            NullNode
+          >
           return TrieNode.create({ keyNibbles: keyToNibbles(key as Uint8Array), subNode })
+        }
+        case 'NullNode': {
+          return new NullNode()
         }
         default:
           throw new Error(`Unknown node type: ${type}`)
       }
     }
   }
-  static _rlpDecode(encoded: Uint8Array): Uint8Array[] {
+  static _rlpDecode(encoded: Input): Uint8Array[] {
     return RLP.decode(encoded) as Uint8Array[]
   }
   static _type(encoded: Uint8Array[]): NodeType {
-    const raw = RLP.decode(encoded) as Uint8Array[]
+    const raw = this._rlpDecode(encoded)
     const type =
-      raw.length === 17
+      raw.length > 2
         ? 'BranchNode'
         : raw.length === 2 && keyToNibbles(encoded as any)[0] > 0
         ? 'LeafNode'
         : raw.length === 2
         ? 'ExtensionNode'
-        : undefined
+        : 'NullNode'
     if (!type) {
+      console.log({
+        encoded,
+        raw,
+        encodedLength: encoded.length,
+        rawLength: raw.length,
+        empty: Uint8Array.from([]),
+        rlpEmpty: RLP.encode(Uint8Array.from([])),
+      })
       throw new Error(`Unknown node type with ${encoded.length} parts: ${type}`)
     }
     return type

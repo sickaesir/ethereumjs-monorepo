@@ -2,7 +2,8 @@ import { RLP } from '@ethereumjs/rlp'
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import { equalsBytes } from 'ethereum-cryptography/utils'
 
-import { decodeNibbles, nibblesEqual, nibblesToKey } from '../util'
+import { addHexPrefix } from '../../util/hex'
+import { decodeNibbles, encodeNibbles, nibblesEqual } from '../util'
 
 import { BaseNode, NullNode } from './index'
 
@@ -10,18 +11,26 @@ import type { Nibble, NodeInterface, NodeType, TNode, TNodeOptions } from '../ty
 
 export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
   type = 'LeafNode' as const
-  key: Uint8Array
   keyNibbles: Nibble[]
   value: Uint8Array | null
   constructor(options: TNodeOptions<'LeafNode'>) {
     super(options)
-    this.key = nibblesToKey(options.key)
     this.keyNibbles = options.key
     this.value = options.value
     this.debug && this.debug(`Created with keyNibbles: ${this.keyNibbles}`)
   }
+  prefixedNibbles(): Nibble[] {
+    const nibbles = this.keyNibbles
+    return addHexPrefix(nibbles, true)
+  }
+  encodedKey(): Uint8Array {
+    return encodeNibbles(this.prefixedNibbles())
+  }
+  raw(): Uint8Array[] {
+    return [this.encodedKey(), this.getValue()]
+  }
   rlpEncode(): Uint8Array {
-    const encodedNode = RLP.encode([Uint8Array.from(this.keyNibbles), this.value])
+    const encodedNode = RLP.encode(this.raw())
     return encodedNode
   }
   hash(): Uint8Array {
@@ -29,7 +38,7 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
     return hashed
   }
   async get(rawKey: Uint8Array): Promise<Uint8Array | null> {
-    const result = equalsBytes(this.key, rawKey) ? this.value : null
+    const result = equalsBytes(this.encodedKey(), rawKey) ? this.value : null
     return result
   }
   getChildren(): Map<number, TNode> {
@@ -38,8 +47,8 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
   getChild(_key: number): TNode {
     throw new Error('LeafNode does not have children')
   }
-  getValue(): Uint8Array | undefined {
-    return this.value ?? undefined
+  getValue(): Uint8Array {
+    return this.value ?? Uint8Array.from([])
   }
   getPartialKey(): Nibble[] {
     return this.keyNibbles
@@ -59,8 +68,8 @@ export class LeafNode extends BaseNode implements NodeInterface<'LeafNode'> {
   async deleteChild(_nibble: Nibble): Promise<TNode> {
     return this
   }
-  updateKey(newKeyNibbles: Nibble[]): LeafNode {
-    return new LeafNode({ key: newKeyNibbles, value: this.value })
+  async updateKey(newKeyNibbles: Nibble[]): Promise<LeafNode> {
+    return new LeafNode({ key: newKeyNibbles, value: this.getValue() })
   }
   async delete(rawKey: Uint8Array): Promise<TNode> {
     const key = decodeNibbles(rawKey)

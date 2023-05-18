@@ -13,6 +13,7 @@ export const nodeType = {
 export type NodeType = keyof typeof nodeType
 export interface NodeOptions {
   hashFunction?: HashFunction
+  value?: Uint8Array | null
 }
 export type TNodeOptions<T extends NodeType> = T extends 'LeafNode'
   ? { key: Nibble[]; value: Uint8Array | null } & NodeOptions
@@ -49,6 +50,7 @@ export interface NodeInterface<T extends NodeType> {
   hashFunction: HashFunction
   keyNibbles: Nibble[]
   getPartialKey(): Nibble[]
+  raw(): any
   rlpEncode(): Uint8Array
   hash(): Uint8Array
   get(rawKey: Uint8Array): Promise<Uint8Array | null>
@@ -57,14 +59,15 @@ export interface NodeInterface<T extends NodeType> {
   deleteChild(nibble: Nibble): Promise<TNode>
   updateChild(newChild: TNode, nibble?: Nibble): TNode
   updateValue(newValue: Uint8Array | null): Promise<TNode>
-  getValue(): Uint8Array | undefined
+  updateKey(key: Nibble[]): Promise<TNode>
+  getValue(): Uint8Array | null
   getType(): NodeType
-  update(value: Uint8Array | null): Promise<TNode>
+  update(value: Uint8Array | null): Promise<Exclude<TNode, NullNode>>
   delete(rawKey?: Uint8Array): Promise<TNode>
 }
 
 export interface Ileaf extends NodeInterface<'LeafNode'> {
-  key: Uint8Array
+  // key: Uint8Array
   value: Uint8Array | null
 }
 export interface Ibranch extends NodeInterface<'BranchNode'> {

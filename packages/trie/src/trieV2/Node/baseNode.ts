@@ -23,13 +23,14 @@ export abstract class BaseNode {
   }
   abstract get(rawKey?: Uint8Array): Promise<Uint8Array | null>
   abstract rlpEncode(): Uint8Array
-  abstract update(value: Uint8Array): Promise<TNode>
+  abstract update(value: Uint8Array): Promise<Exclude<TNode, NullNode>>
   abstract getChild(key?: number): TNode | undefined
   abstract deleteChild(nibble: Nibble): Promise<TNode>
   abstract updateChild(newChild: TNode, nibble?: Nibble): TNode
   abstract updateValue(newValue: Uint8Array | null): Promise<TNode>
+  abstract updateKey(key: Nibble[]): Promise<TNode>
   abstract getChildren(): Map<number, TNode>
-  abstract getValue(): Uint8Array | undefined
+  abstract getValue(): Uint8Array | null
   abstract getPartialKey(): Nibble[]
   abstract getType(): NodeType
   abstract delete(rawKey?: Uint8Array): Promise<TNode>
@@ -40,8 +41,11 @@ export class NullNode extends BaseNode {
   constructor() {
     super({})
   }
+  raw(): Uint8Array {
+    return Uint8Array.from([])
+  }
   rlpEncode(): Uint8Array {
-    return RLP.encode(Uint8Array.from([]))
+    return RLP.encode(Uint8Array.from(0x80))
   }
   hash(): Uint8Array {
     return this.hashFunction(this.rlpEncode())
@@ -64,16 +68,19 @@ export class NullNode extends BaseNode {
   async deleteChild(_nibble: Nibble) {
     return this
   }
-  async updateValue(_newValue: Uint8Array): Promise<TNode> {
+  async updateValue(_newValue: Uint8Array | null): Promise<TNode> {
     return this
   }
   getPartialKey(): Nibble[] {
     return []
   }
-  getValue(): Uint8Array | undefined {
-    return undefined
+  getValue(): Uint8Array | null {
+    return null
   }
-  async update(value: Uint8Array): Promise<TNode> {
+  async updateKey(_newKey: Nibble[]): Promise<TNode> {
+    throw new Error('Cannot update key of NullNode')
+  }
+  async update(value: Uint8Array): Promise<Exclude<TNode, NullNode>> {
     const newNode = await TrieNode.create({ key: decodeNibbles(this.hashFunction(value)), value })
     return newNode
   }
