@@ -72,7 +72,7 @@ export async function fromProof(
   if (!equalsBytes(rootHash, root.hash())) {
     throw new Error('Proof root hash does not match expected root hash')
   }
-  const trie = new Trie(root)
+  const trie = new Trie({ root })
   for (let i = 1; i < proof.length - 1; i++) {
     const node = proof[i]
     const key = nibblesToKey(node.getPartialKey())

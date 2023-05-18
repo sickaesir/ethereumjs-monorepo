@@ -1,9 +1,4 @@
-import {
-  bytesToPrefixedHexString,
-  equalsBytes,
-  hexStringToBytes,
-  utf8ToBytes,
-} from '@ethereumjs/util'
+import { bytesToPrefixedHexString, hexStringToBytes, utf8ToBytes } from '@ethereumjs/util'
 import * as tape from 'tape'
 
 import * as hexencoded from '../../../../ethereum-tests/TrieTests/hex_encoded_securetrie_test.json'
@@ -14,12 +9,11 @@ import * as securetest from '../../../../ethereum-tests/TrieTests/trietest_secur
 import { Trie } from '../../../src'
 import { TrieWrap } from '../../../src/trieV2/Trie/trieWrapper'
 
-console.log(Object.keys(trietest))
 tape('trietest.json', async (_tape) => {
   _tape.test('emptyValues', async (t) => {
     const test = trietest.emptyValues
     t.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap()
+    const trie_v2 = new TrieWrap({})
     const trie_v1 = new Trie()
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -50,7 +44,7 @@ tape('trietest.json', async (_tape) => {
   _tape.test('branchingTests', async (t) => {
     const test = trietest.branchingTests
     t.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap()
+    const trie_v2 = new TrieWrap({})
     const trie_v1 = new Trie()
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -83,7 +77,7 @@ tape('trietest.json', async (_tape) => {
   _tape.test('jeff', async (t) => {
     const test = trietest.jeff
     t.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap()
+    const trie_v2 = new TrieWrap({})
     const trie_v1 = new Trie()
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -117,7 +111,7 @@ tape('trietest.json', async (_tape) => {
   _tape.test('insert-middle-leaf', async (t) => {
     const test = trietest['insert-middle-leaf']
     t.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap()
+    const trie_v2 = new TrieWrap({})
     const trie_v1 = new Trie()
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -151,7 +145,7 @@ tape('trietest.json', async (_tape) => {
   _tape.test('branch-value-update', async (t) => {
     const test = trietest['branch-value-update']
     t.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap()
+    const trie_v2 = new TrieWrap({})
     const trie_v1 = new Trie()
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -175,11 +169,6 @@ tape('trietest.json', async (_tape) => {
 
           const _value = typeof changed[1] === 'string' ? utf8ToBytes(changed[1]) : null
           const stored_v2 = await trie_v2.get(utf8ToBytes(_k!))
-          console.log({
-            changed,
-            key: utf8ToBytes(changed[0]),
-            val: utf8ToBytes(changed[1]),
-          })
           t.deepEqual(
             stored_v2,
             _value,
@@ -204,7 +193,7 @@ tape('hex_encoded_securetrie_test.json', async (_tape) => {
   _tape.test('emptyValues', async (t) => {
     const test = securetest.emptyValues
     t.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap(undefined, true)
+    const trie_v2 = new TrieWrap({ secure: true })
     const trie_v1 = new Trie({ useKeyHashing: true })
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -235,7 +224,7 @@ tape('hex_encoded_securetrie_test.json', async (_tape) => {
   _tape.test('branchingTests', async (t) => {
     const test = securetest.branchingTests
     t.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap(undefined, true)
+    const trie_v2 = new TrieWrap({ secure: true })
     const trie_v1 = new Trie({ useKeyHashing: true })
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -268,7 +257,7 @@ tape('hex_encoded_securetrie_test.json', async (_tape) => {
   _tape.test('jeff', async (t) => {
     const test = securetest.jeff
     t.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap(undefined, true)
+    const trie_v2 = new TrieWrap({ secure: true })
     const trie_v1 = new Trie({ useKeyHashing: true })
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -306,7 +295,7 @@ tape('securetrie', async (t) => {
     const test = hexencoded.test1
     const test_in = Object.entries(test.in)
     st.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap(undefined, true)
+    const trie_v2 = new TrieWrap({ secure: true })
     const trie_v1 = new Trie({ useKeyHashing: true })
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -340,7 +329,7 @@ tape('securetrie', async (t) => {
     const test = hexencoded.test2
     const test_in = Object.entries(test.in)
     st.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap(undefined, true)
+    const trie_v2 = new TrieWrap({ secure: true })
     const trie_v1 = new Trie({ useKeyHashing: true })
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -374,7 +363,7 @@ tape('securetrie', async (t) => {
     const test = hexencoded.test3
     const test_in = Object.entries(test.in)
     st.pass(`${test.in}`)
-    const trie_v2 = new TrieWrap(undefined, true)
+    const trie_v2 = new TrieWrap({ secure: true })
     const trie_v1 = new Trie({ useKeyHashing: true })
     const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
     const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -415,7 +404,7 @@ tape('secure_anyOrder', async (t) => {
     t.test(`${_test}`, async (st) => {
       const test = secure_anyOrder[_test as keyof typeof secure_anyOrder]
       const test_in = Object.entries(test.in)
-      const trie_v2 = new TrieWrap(undefined, true)
+      const trie_v2 = new TrieWrap({ secure: true })
       const trie_v1 = new Trie({ useKeyHashing: true })
       const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
       const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -452,7 +441,7 @@ tape('anyOrder', async (t) => {
     t.test(`${_test}`, async (st) => {
       const test = trieanyorder[_test as keyof typeof trieanyorder]
       const test_in = Object.entries(test.in)
-      const trie_v2 = new TrieWrap()
+      const trie_v2 = new TrieWrap({})
       const trie_v1 = new Trie()
       const emptyRoot_v2 = bytesToPrefixedHexString(trie_v2.getRootHash())
       const emptyRoot_v1 = bytesToPrefixedHexString(trie_v1.root())
@@ -468,14 +457,7 @@ tape('anyOrder', async (t) => {
         const v1_root = trie_v1.root()
         const v2_root = trie_v2.getRootHash()
         st.deepEqual(v2_root, v1_root, `${idx}: root hash should match`)
-        if (!equalsBytes(v2_root, v1_root)) {
-          const v1 = (await trie_v1.lookupNode(v1_root))!
-          const v2 = trie_v2.getRoot()
-          console.log('type', v2.getType())
-          console.log('v1', v1.raw())
-          console.log('v2', v2.raw())
-          console.log('v2_child', v2.getChild(0)!.hash())
-        }
+
         for await (const [_k, _v] of toTest.entries()) {
           const _value = typeof _v === 'string' ? serializer(_v, hex) : null
           const stored_v2 = await trie_v2.get(serializer(_k!, hex))

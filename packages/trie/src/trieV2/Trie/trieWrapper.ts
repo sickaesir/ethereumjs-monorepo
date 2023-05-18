@@ -9,13 +9,34 @@ import { keyToNibbles, nibblesToKey } from '../util'
 import { Trie } from './MMP'
 
 import type { OnFoundFunction, TNode, WalkFilterFunction } from '../types'
+import type { MerklePatriciaTrieOptions } from './MMP'
 import type { Debugger } from 'debug'
 
+interface ItrieWrap {
+  debug?: Debugger
+  trie?: Trie | undefined
+  secure?: boolean | undefined
+  hashFunction?: (data: Uint8Array) => Uint8Array
+}
+interface TrieWrapFromTrie extends ItrieWrap {
+  trie: Trie
+  secure?: undefined
+}
+interface TrieWrapFromScratch extends ItrieWrap {
+  secure?: boolean
+  trie?: undefined
+}
+
+interface TrieWrapFromTrieOptions extends MerklePatriciaTrieOptions {
+  trie?: undefined
+}
+
+export type TrieWrapOptions = TrieWrapFromTrie | TrieWrapFromScratch | TrieWrapFromTrieOptions
 export class TrieWrap {
   static async fromProof(
     rootHash: Uint8Array,
     proof: TNode[],
-    dbug: Debugger = debug('trie')
+    dbug: Debugger = debug('Trie')
   ): Promise<TrieWrap> {
     dbug = dbug.extend('fromProof')
     dbug(`Creating trie from proof`)
@@ -26,11 +47,13 @@ export class TrieWrap {
   trie: Trie
   debug: Debugger
   _operationMutex: Mutex
+  keySecure: (key: Uint8Array) => Uint8Array
 
-  constructor(trie?: Trie, secure?: boolean) {
-    this.trie = trie ?? new Trie(undefined, secure)
-    this.debug = debug(`Trie`)
+  constructor(options: TrieWrapOptions) {
+    this.trie = options.trie ?? new Trie({ secure: options.secure })
+    this.debug = options.debug ? options.debug.extend('Trie') : debug(`Trie`)
     this._operationMutex = new Mutex()
+    this.keySecure = options.secure === true ? this.trie.hashFunction : (key) => key
   }
   getRootHash(): Uint8Array {
     return this.getRoot().hash()
@@ -46,7 +69,7 @@ export class TrieWrap {
     _value: Uint8Array | null,
     debug: Debugger = this.debug
   ): Promise<void> {
-    _key = this.trie.appliedKey(_key)
+    _key = this.keySecure(_key)
     await this._withLock(async () => {
       debug = debug.extend('insert')
       const keyNibbles = keyToNibbles(_key)
@@ -71,7 +94,7 @@ export class TrieWrap {
     })
   }
   public async delete(key: Uint8Array, debug: Debugger = this.debug): Promise<void> {
-    key = this.trie.appliedKey(key)
+    key = this.keySecure(key)
     await this._withLock(async () => {
       debug = debug.extend('delete')
       const keyNibbles = keyToNibbles(key)
@@ -85,7 +108,7 @@ export class TrieWrap {
     })
   }
   public async get(key: Uint8Array, debug: Debugger = this.debug): Promise<Uint8Array | null> {
-    key = this.trie.appliedKey(key)
+    key = this.keySecure(key)
 
     debug = debug.extend('get')
     const lastNode = await this.trie._getNode(key, debug)
@@ -97,7 +120,7 @@ export class TrieWrap {
     return value
   }
   async createProof(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode[]> {
-    key = this.trie.appliedKey(key)
+    key = this.keySecure(key)
     debug = debug.extend('createProof')
     debug(`Creating proof for key: ${key}`)
     const path = keyToNibbles(key)

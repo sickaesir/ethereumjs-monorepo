@@ -17,6 +17,12 @@ import type { NodeType, OnFoundFunction, TNode, WalkFilterFunction } from '../ty
 import type { WalkResult } from '../util'
 import type { Debugger } from 'debug'
 
+export interface MerklePatriciaTrieOptions {
+  root?: TNode
+  secure?: boolean
+  hashFunction?: (data: Uint8Array) => Uint8Array
+  debug?: Debugger
+}
 export class Trie {
   static async verifyProof(
     rootHash: Uint8Array,
@@ -37,18 +43,13 @@ export class Trie {
   debug: Debugger
   hashFunction: (data: Uint8Array) => Uint8Array
   secure?: boolean
-  constructor(root?: TNode, secure?: boolean, hashFunction?: (data: Uint8Array) => Uint8Array) {
-    this.root = root ?? new NullNode()
-    this.debug = debug(`Trie`)
-    this.secure = secure
-    this.hashFunction = hashFunction ?? keccak256
+  constructor(options?: MerklePatriciaTrieOptions) {
+    this.root = options?.root ?? new NullNode()
+    this.debug = options?.debug ? options.debug.extend(`Trie`) : debug('Trie')
+    this.secure = options?.secure
+    this.hashFunction = options?.hashFunction ?? keccak256
   }
-  appliedKey(key: Uint8Array) {
-    if (this.secure === true) {
-      return this.hashFunction(key)
-    }
-    return key
-  }
+
   async _getNode(key: Uint8Array, debug: Debugger = this.debug): Promise<TNode> {
     debug = debug.extend('_getNode')
     debug(`getting value for key: ${bytesToPrefixedHexString(key)}`)

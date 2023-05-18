@@ -24,7 +24,7 @@ const runTests = async (testSizes: number[] = [100, 200]) => {
     tape('MMPT', async (t) => {
       t.test('insert/get/delete', async (st) => {
         const d_bug = debug('test:trie')
-        const trie = new TrieWrap()
+        const trie = new TrieWrap({ debug: d_bug })
         const value = await trie.get(Uint8Array.from([1, 2, 3, 4]), d_bug)
         st.equal(value, null, 'get should return null for a non-existent key')
         for await (const [idx, key] of keys.entries()) {
@@ -104,7 +104,7 @@ const runTests = async (testSizes: number[] = [100, 200]) => {
       })
       t.test('create proof / verify proof', async (st) => {
         const d_bug = debug('test:proof')
-        const trie = new TrieWrap()
+        const trie = new TrieWrap({ debug: d_bug })
         for await (const [idx, key] of keys.entries()) {
           await trie.insert(key, values[idx], d_bug)
         }
@@ -168,7 +168,7 @@ const runTests = async (testSizes: number[] = [100, 200]) => {
       })
       t.test('walkTrie', async (st) => {
         const d_bug = debug('test:walkTrie')
-        const trie = new TrieWrap()
+        const trie = new TrieWrap({ debug: d_bug })
         for await (const [idx, key] of keys.entries()) {
           await trie.insert(key, values[idx], d_bug)
         }
@@ -273,7 +273,7 @@ runTests()
   .catch((_) => {})
 
 tape('node serialization', async (t) => {
-  const trie = new TrieWrap()
+  const trie = new TrieWrap({ debug: debug('test:node:serialization') })
   const key = utf8ToBytes('key')
   const value = utf8ToBytes('value')
   await trie.insert(key, value)
