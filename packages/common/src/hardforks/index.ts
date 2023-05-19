@@ -17,4 +17,13 @@ export const hardforks = {
   mergeForkIdTransition: require('./mergeForkIdTransition.json'),
   paris: require('./paris.json'),
   cancun: require('./cancun.json'),
+  ramanujan: require('./ramanujan.json'),
+  niels: require('./niels.json'),
+  mirrorSync: require('./mirrorSync.json'),
+  bruno: require('./bruno.json'),
+  euler: require('./euler.json'),
+  nano: require('./nano.json'),
+  moran: require('./moran.json'),
+  gibbs: require('./gibbs.json'),
+  planck: require('./planck.json'),
 }

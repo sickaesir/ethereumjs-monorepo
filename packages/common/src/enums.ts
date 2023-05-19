@@ -4,6 +4,7 @@ export enum Chain {
   Rinkeby = 4,
   Goerli = 5,
   Sepolia = 11155111,
+  Bsc = 56,
 }
 
 export enum Hardfork {
@@ -25,6 +26,15 @@ export enum Hardfork {
   Paris = 'paris',
   Shanghai = 'shanghai',
   Cancun = 'cancun',
+  Ramanujan = 'ramanujan',
+  Niels = 'niels',
+  MirrorSync = 'mirrorSync',
+  Bruno = 'bruno',
+  Euler = 'euler',
+  Nano = 'nano',
+  Moran = 'moran',
+  Gibbs = 'gibbs',
+  Planck = 'planck',
 }
 
 export enum ConsensusType {
