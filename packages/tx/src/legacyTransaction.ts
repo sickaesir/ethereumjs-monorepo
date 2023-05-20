@@ -15,7 +15,7 @@ import { BaseTransaction } from './baseTransaction'
 import { Capability } from './types'
 
 import type { JsonTx, TxData, TxOptions, TxValuesArray } from './types'
-import type { Common } from '@ethereumjs/common'
+import { Chain, Common } from '@ethereumjs/common'
 
 const TRANSACTION_TYPE = 0
 
@@ -115,7 +115,7 @@ export class Transaction extends BaseTransaction<Transaction> {
     this._validateCannotExceedMaxInteger({ gasPrice: this.gasPrice })
     BaseTransaction._validateNotArray(txData)
 
-    if (this.common.gteHardfork('spuriousDragon')) {
+    if (this.common.gteHardfork('spuriousDragon') || this.common.chainId() === BigInt(Chain.Bsc)) {
       if (!this.isSigned()) {
         this.activeCapabilities.push(Capability.EIP155ReplayProtection)
       } else {
@@ -363,7 +363,7 @@ export class Transaction extends BaseTransaction<Transaction> {
     if (
       v !== undefined &&
       v !== 0 &&
-      (!common || common.gteHardfork('spuriousDragon')) &&
+      (!common || common.gteHardfork('spuriousDragon') || common.chainId() === BigInt(Chain.Bsc)) &&
       v !== 27 &&
       v !== 28
     ) {

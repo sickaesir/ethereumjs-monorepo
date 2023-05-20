@@ -4,7 +4,7 @@
   "networkId": 56,
   "defaultHardfork": "planck",
   "consensus": {
-    "type": "pos",
+    "type": "poa",
     "algorithm": "ethash",
     "ethash": {}
   },
