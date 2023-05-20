@@ -1,3 +1,4 @@
+import { Chain } from '@ethereumjs/common'
 import { RLP } from '@ethereumjs/rlp'
 import {
   MAX_INTEGER,
@@ -15,7 +16,7 @@ import { BaseTransaction } from './baseTransaction'
 import { Capability } from './types'
 
 import type { JsonTx, TxData, TxOptions, TxValuesArray } from './types'
-import { Chain, Common } from '@ethereumjs/common'
+import type { Common } from '@ethereumjs/common'
 
 const TRANSACTION_TYPE = 0
 

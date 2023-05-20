@@ -9,12 +9,12 @@ import {
 import { buf as crc32Buffer } from 'crc-32'
 import { EventEmitter } from 'events'
 
+import * as bsc from './chains/bsc.json'
 import * as goerli from './chains/goerli.json'
 import * as mainnet from './chains/mainnet.json'
 import * as rinkeby from './chains/rinkeby.json'
 import * as ropsten from './chains/ropsten.json'
 import * as sepolia from './chains/sepolia.json'
-import * as bsc from './chains/bsc.json'
 import { EIPs } from './eips'
 import { Chain, CustomChain, Hardfork } from './enums'
 import { hardforks as HARDFORK_SPECS } from './hardforks'
