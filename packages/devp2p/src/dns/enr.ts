@@ -11,7 +11,7 @@ import type { PeerInfo } from '../dpt'
 
 const Convert = require('multiaddr/src/convert')
 
-type ProtocolCodes = {
+export type ProtocolCodes = {
   ipCode: number
   tcpCode: number
   udpCode: number

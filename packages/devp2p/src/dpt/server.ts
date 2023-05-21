@@ -11,6 +11,7 @@ import type { DPT, PeerInfo } from './dpt'
 import type { Debugger } from 'debug'
 import type { Socket as DgramSocket, RemoteInfo } from 'dgram'
 import type LRUCache from 'lru-cache'
+import { secp256k1 } from 'ethereum-cryptography/secp256k1'
 
 const LRU = require('lru-cache')
 
@@ -218,6 +219,26 @@ export class Server extends EventEmitter {
           'peers',
           info.data.peers.map((peer: any) => peer.endpoint)
         )
+        break
+      }
+
+      case 'enrrequest': {
+        const remote: PeerInfo = {
+          id: peerId,
+          udpPort: rinfo.port,
+          address: rinfo.address,
+        }
+        this._send(remote, 'enrresponse', {
+          hash: msg.subarray(0, 32),
+          id: 'v4',
+          publicKey: secp256k1.getPublicKey(this._privateKey),
+          v4: this._endpoint,
+          v6: {
+            address: '::1',
+            tcpPort: this._endpoint.tcpPort,
+            udpPort: this._endpoint.udpPort,
+          },
+        })
         break
       }
     }

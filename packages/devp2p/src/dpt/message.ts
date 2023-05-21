@@ -2,7 +2,14 @@ import { RLP } from '@ethereumjs/rlp'
 import { bytesToInt, intToBytes } from '@ethereumjs/util'
 import { debug as createDebugLogger } from 'debug'
 import { ecdsaRecover, ecdsaSign } from 'ethereum-cryptography/secp256k1-compat'
-import { bytesToHex, bytesToUtf8, concatBytes } from 'ethereum-cryptography/utils'
+import {
+  bytesToHex,
+  bytesToUtf8,
+  concatBytes,
+  hexToBytes,
+  utf8ToBytes,
+} from 'ethereum-cryptography/utils'
+import { ProtocolCodes } from '../dns/enr'
 
 import {
   assertEq,
@@ -150,7 +157,63 @@ const neighbours = {
   },
 }
 
-const messages: any = { ping, pong, findneighbours, neighbours }
+type InENRRequestMsg = { timestamp: number }
+type OutENRRequestMsg = { [0]: Uint8Array }
+const enrrequest = {
+  encode(obj: InENRRequestMsg): OutENRRequestMsg {
+    return [timestamp.encode(obj.timestamp)]
+  },
+  decode(payload: OutENRRequestMsg): InENRRequestMsg {
+    return {
+      timestamp: timestamp.decode(payload[0]),
+    }
+  },
+}
+
+type InENRResponseMsg = {
+  hash: Uint8Array
+  id: string
+  publicKey: Uint8Array
+  v4: PeerInfo
+  v6: PeerInfo
+}
+type OutENRResponseMsg = { [0]: Uint8Array; [1]: Uint8Array[] }
+const enrresponse = {
+  encode(obj: InENRResponseMsg): OutENRResponseMsg {
+    return [
+      obj.hash,
+      [
+        utf8ToBytes(obj.id),
+        obj.publicKey,
+        address.encode(obj.v4.address!),
+        port.encode(obj.v4.tcpPort ?? null),
+        port.encode(obj.v4.udpPort ?? null),
+        address.encode(obj.v6.address!),
+        port.encode(obj.v6.tcpPort ?? null),
+        port.encode(obj.v6.udpPort ?? null),
+      ],
+    ]
+  },
+  decode(payload: OutENRResponseMsg): InENRResponseMsg {
+    return {
+      hash: payload[0],
+      id: bytesToUtf8(payload[1][0]),
+      publicKey: payload[1][1],
+      v4: {
+        address: address.decode(payload[1][2]),
+        tcpPort: port.decode(payload[1][3]),
+        udpPort: port.decode(payload[1][4]),
+      },
+      v6: {
+        address: address.decode(payload[1][5]),
+        tcpPort: port.decode(payload[1][6]),
+        udpPort: port.decode(payload[1][7]),
+      },
+    }
+  },
+}
+
+const messages: any = { ping, pong, findneighbours, neighbours, enrrequest, enrresponse }
 
 type Types = { [index: string]: { [index: string]: number | string } }
 const types: Types = {
@@ -159,12 +222,16 @@ const types: Types = {
     pong: 0x02,
     findneighbours: 0x03,
     neighbours: 0x04,
+    enrrequest: 0x05,
+    enrresponse: 0x06,
   },
   byType: {
     0x01: 'ping',
     0x02: 'pong',
     0x03: 'findneighbours',
     0x04: 'neighbours',
+    0x05: 'enrrequest',
+    0x06: 'enrresponse',
   },
 }
 

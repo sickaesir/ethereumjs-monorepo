@@ -52,6 +52,8 @@ export class ETH extends Protocol {
   static eth64 = { name: 'eth', version: 64, length: 17, constructor: ETH }
   static eth65 = { name: 'eth', version: 65, length: 17, constructor: ETH }
   static eth66 = { name: 'eth', version: 66, length: 17, constructor: ETH }
+  static eth67 = { name: 'eth', version: 67, length: 17, constructor: ETH }
+  static eth68 = { name: 'eth', version: 68, length: 17, constructor: ETH }
 
   _handleMessage(code: ETH.MESSAGE_CODES, data: any) {
     const payload = RLP.decode(data)
@@ -96,6 +98,9 @@ export class ETH extends Protocol {
 
       case ETH.MESSAGE_CODES.GET_NODE_DATA:
       case ETH.MESSAGE_CODES.NODE_DATA:
+        if (this._version >= ETH.eth63.version && this._version <= ETH.eth66.version) break
+        return
+
       case ETH.MESSAGE_CODES.GET_RECEIPTS:
       case ETH.MESSAGE_CODES.RECEIPTS:
         if (this._version >= ETH.eth63.version) break
@@ -316,6 +321,9 @@ export class ETH extends Protocol {
 
       case ETH.MESSAGE_CODES.GET_NODE_DATA:
       case ETH.MESSAGE_CODES.NODE_DATA:
+        if (this._version >= ETH.eth63.version && this._version <= ETH.eth66.version) break
+        throw new Error(`Code ${code} not allowed with version ${this._version}`)
+
       case ETH.MESSAGE_CODES.GET_RECEIPTS:
       case ETH.MESSAGE_CODES.RECEIPTS:
         if (this._version >= ETH.eth63.version) break
@@ -367,9 +375,11 @@ export namespace ETH {
     BLOCK_BODIES = 0x06,
     NEW_BLOCK = 0x07,
 
-    // eth63
+    // eth63 till eth66
     GET_NODE_DATA = 0x0d,
     NODE_DATA = 0x0e,
+
+    // eth63
     GET_RECEIPTS = 0x0f,
     RECEIPTS = 0x10,
 
