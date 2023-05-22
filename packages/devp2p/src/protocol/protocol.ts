@@ -17,14 +17,15 @@ type MessageCodes = { [key: number | string]: number | string }
 
 export type SendMethod = (code: number, data: Uint8Array) => any
 
-export class Protocol extends EventEmitter {
+export abstract class Protocol extends EventEmitter {
   _version: number
   _peer: Peer
-  _send: SendMethod
   _statusTimeoutId?: NodeJS.Timeout
   _messageCodes: MessageCodes
   _debug: Debugger
   _verbose: boolean
+  _offset: number
+  _length: number
 
   /**
    * Will be set to the first successfully connected peer to allow for
@@ -37,7 +38,8 @@ export class Protocol extends EventEmitter {
 
   constructor(
     peer: Peer,
-    send: SendMethod,
+    offset: number,
+    length: number,
     protocol: EthProtocol,
     version: number,
     messageCodes: MessageCodes
@@ -45,14 +47,15 @@ export class Protocol extends EventEmitter {
     super()
 
     this._peer = peer
-    this._send = send
+    this._offset = offset
+    this._length = length
     this._version = version
     this._messageCodes = messageCodes
     this._statusTimeoutId =
       protocol !== EthProtocol.SNAP
         ? setTimeout(() => {
             this._peer.disconnect(DISCONNECT_REASONS.TIMEOUT)
-          }, 5000) // 5 sec * 1000
+          }, this._peer._pingTimeout) // 5 sec * 1000
         : undefined
 
     this._debug = devp2pDebug.extend(protocol)
@@ -89,6 +92,12 @@ export class Protocol extends EventEmitter {
       this._firstPeer = ip
     }
   }
+
+  _sendMessage(code: number, data: Uint8Array) {
+    return this._peer._sendMessage(this._offset + code, data)
+  }
+
+  abstract _handleMessage(code: number, payload: any): void
 
   /**
    * Debug message both on the generic as well as the

@@ -20,6 +20,7 @@ import type { ETH, LES } from '..'
 import type { Common } from '@ethereumjs/common'
 import type { Debugger } from 'debug'
 import type { Socket } from 'net'
+import { Protocol } from '../protocol/protocol'
 
 const DEBUG_BASE_NAME = 'rlpx:peer'
 const verbose = createDebugLogger('verbose').enabled
@@ -59,12 +60,6 @@ export type HelloMsg = {
   3: Uint8Array
   4: Uint8Array
   length: 5
-}
-
-export interface ProtocolDescriptor {
-  protocol: any
-  offset: number
-  length?: number
 }
 
 export interface ProtocolConstructor {
@@ -115,7 +110,7 @@ export class Peer extends EventEmitter {
    * Subprotocols (e.g. `ETH`) derived from the exchange on
    * capabilities
    */
-  _protocols: ProtocolDescriptor[]
+  _protocols: (ETH | LES)[]
 
   constructor(options: any) {
     super()
@@ -410,28 +405,19 @@ export class Peer extends EventEmitter {
       }
     }
 
-    let offset = BASE_PROTOCOL_LENGTH
-    this._protocols = Object.keys(shared)
+    let protoRW = Object.keys(shared)
       .map((key) => shared[key])
       .sort((obj1, obj2) => (obj1.name < obj2.name ? -1 : 1))
-      .map((obj) => {
-        const _offset = offset
-        offset += obj.length
 
-        // The send method handed over to the subprotocol object (e.g. an `ETH` instance).
-        // The subprotocol is then calling into the lower level method
-        // (e.g. `ETH` calling into `Peer._sendMessage()`).
-        const sendMethod = (code: number, data: Uint8Array) => {
-          if (code > obj.length) throw new Error('Code out of range')
-          this._sendMessage(_offset + code, data)
-        }
-        // Dynamically instantiate the subprotocol object
-        // from the constructor
-        const SubProtocol = obj.constructor
-        const protocol = new SubProtocol(obj.version, this, sendMethod)
+    this._protocols = []
+    let offset = BASE_PROTOCOL_LENGTH
+    for (const proto of protoRW) {
+      const SubProtocol = proto.constructor
+      const protocol = new SubProtocol(proto.version, this, offset, proto.length)
+      this._protocols.push(protocol)
 
-        return { protocol, offset: _offset, length: obj.length }
-      })
+      offset += proto.length
+    }
 
     if (this._protocols.length === 0) {
       return this.disconnect(DISCONNECT_REASONS.USELESS_PEER)
@@ -549,15 +535,8 @@ export class Peer extends EventEmitter {
     const protocolObj = this._getProtocol(code)
     if (protocolObj === undefined) return this.disconnect(DISCONNECT_REASONS.PROTOCOL_ERROR)
 
-    const msgCode = code - protocolObj.offset
-    const protocolName = protocolObj.protocol.constructor.name
-
-    const postAdd = `(code: ${code} - ${protocolObj.offset} = ${msgCode}) ${this._socket.remoteAddress}:${this._socket.remotePort}`
-    if (protocolName === 'Peer') {
-      const messageName = this.getMsgPrefix(msgCode)
-      this.debug(messageName, `Received ${messageName} message ${postAdd}`)
-    } else {
-      this._logger(`Received ${protocolName} subprotocol message ${postAdd}`)
+    if (protocolObj !== null) {
+      code -= protocolObj._offset
     }
 
     try {
@@ -584,11 +563,11 @@ export class Peer extends EventEmitter {
       //
       // Note: there might be a cleaner solution to apply here.
       //
-      if (protocolName === 'Peer') {
+      if (protocolObj === null) {
         try {
           payload = RLP.decode(payload)
         } catch (e: any) {
-          if (msgCode === PREFIXES.DISCONNECT) {
+          if (code === PREFIXES.DISCONNECT) {
             if (compressed) {
               payload = RLP.decode(origPayload)
             } else {
@@ -598,8 +577,10 @@ export class Peer extends EventEmitter {
             throw new Error(e)
           }
         }
+        this._handleMessage(code, payload)
+      } else {
+        protocolObj._handleMessage(code, payload)
       }
-      protocolObj.protocol._handleMessage(msgCode, payload)
     } catch (err: any) {
       this.disconnect(DISCONNECT_REASONS.SUBPROTOCOL_ERROR)
       this._logger(`Error on peer subprotocol message handling: ${err}`)
@@ -655,11 +636,12 @@ export class Peer extends EventEmitter {
    * reference to this Peer instance or to a subprotocol instance (e.g. `ETH`)
    * (depending on the `code` provided)
    */
-  _getProtocol(code: number): ProtocolDescriptor | undefined {
-    if (code < BASE_PROTOCOL_LENGTH) return { protocol: this, offset: 0 }
+  _getProtocol(code: number): Protocol | null | undefined {
+    if (code < BASE_PROTOCOL_LENGTH) return null
     for (const obj of this._protocols) {
-      if (code >= obj.offset && code < obj.offset + obj.length!) return obj
+      if (code >= obj._offset && code < obj._offset + obj._length!) return obj
     }
+    return undefined
   }
 
   getId() {
@@ -671,8 +653,8 @@ export class Peer extends EventEmitter {
     return this._hello
   }
 
-  getProtocols<T extends ETH | LES>(): T[] {
-    return this._protocols.map((obj) => obj.protocol)
+  getProtocols<T extends ETH | LES>(): (ETH | LES)[] {
+    return this._protocols
   }
 
   getMsgPrefix(code: PREFIXES): string {

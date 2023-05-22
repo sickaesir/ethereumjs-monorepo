@@ -16,6 +16,7 @@ import { EthProtocol, Protocol } from './protocol'
 
 import type { Peer } from '../rlpx/peer'
 import type { SendMethod } from './protocol'
+import { Chain } from '@ethereumjs/common'
 
 export class ETH extends Protocol {
   _status: ETH.StatusMsg | null = null
@@ -28,8 +29,8 @@ export class ETH extends Protocol {
   _forkHash: string = ''
   _nextForkBlock = BigInt(0)
 
-  constructor(version: number, peer: Peer, send: SendMethod) {
-    super(peer, send, EthProtocol.ETH, version, ETH.MESSAGE_CODES)
+  constructor(version: number, peer: Peer, offset: number, length: number) {
+    super(peer, offset, length, EthProtocol.ETH, version, ETH.MESSAGE_CODES)
 
     // Set forkHash and nextForkBlock
     if (this._version >= 64) {
@@ -53,9 +54,9 @@ export class ETH extends Protocol {
   static eth65 = { name: 'eth', version: 65, length: 17, constructor: ETH }
   static eth66 = { name: 'eth', version: 66, length: 17, constructor: ETH }
   static eth67 = { name: 'eth', version: 67, length: 17, constructor: ETH }
-  static eth68 = { name: 'eth', version: 68, length: 17, constructor: ETH }
+  //static eth68 = { name: 'eth', version: 68, length: 18, constructor: ETH }
 
-  _handleMessage(code: ETH.MESSAGE_CODES, data: any) {
+  override _handleMessage(code: ETH.MESSAGE_CODES, data: any) {
     const payload = RLP.decode(data)
     const messageName = this.getMsgPrefix(code)
     const debugMsg = this.DEBUG
@@ -110,6 +111,14 @@ export class ETH extends Protocol {
       case ETH.MESSAGE_CODES.GET_POOLED_TRANSACTIONS:
       case ETH.MESSAGE_CODES.POOLED_TRANSACTIONS:
         if (this._version >= ETH.eth65.version) break
+        return
+
+      case ETH.MESSAGE_CODES.UPGRADE_STATUS:
+        if (
+          this._version >= ETH.eth67.version &&
+          this._peer._common.chainId() === BigInt(Chain.Bsc)
+        )
+          break
         return
 
       default:
@@ -292,7 +301,7 @@ export class ETH extends Protocol {
       payload = snappy.compress(payload)
     }
 
-    this._send(ETH.MESSAGE_CODES.STATUS, payload)
+    this._sendMessage(ETH.MESSAGE_CODES.STATUS, payload)
     this._handleStatus()
   }
 
@@ -335,6 +344,16 @@ export class ETH extends Protocol {
         if (this._version >= ETH.eth65.version) break
         throw new Error(`Code ${code} not allowed with version ${this._version}`)
 
+      case ETH.MESSAGE_CODES.UPGRADE_STATUS:
+        if (
+          this._version >= ETH.eth67.version &&
+          this._peer._common.chainId() === BigInt(Chain.Bsc)
+        )
+          break
+        throw new Error(
+          `Code ${code} not allowed with this version ${this._version} and/or outside BSC`
+        )
+
       default:
         throw new Error(`Unknown code ${code}`)
     }
@@ -346,7 +365,7 @@ export class ETH extends Protocol {
       payload = snappy.compress(payload)
     }
 
-    this._send(code, payload)
+    this._sendMessage(code, payload)
   }
 
   getMsgPrefix(msgCode: ETH.MESSAGE_CODES): string {
@@ -387,5 +406,8 @@ export namespace ETH {
     NEW_POOLED_TRANSACTION_HASHES = 0x08,
     GET_POOLED_TRANSACTIONS = 0x09,
     POOLED_TRANSACTIONS = 0x0a,
+
+    // eth66
+    UPGRADE_STATUS = 0x0b, // bsc only
   }
 }

@@ -10,8 +10,8 @@ import type { Peer } from '../rlpx/peer'
 import type { SendMethod } from './protocol'
 
 export class SNAP extends Protocol {
-  constructor(version: number, peer: Peer, send: SendMethod) {
-    super(peer, send, EthProtocol.SNAP, version, SNAP.MESSAGE_CODES)
+  constructor(version: number, peer: Peer, offset: number, length: number) {
+    super(peer, offset, length, EthProtocol.SNAP, version, SNAP.MESSAGE_CODES)
   }
 
   static snap = { name: 'snap', version: 1, length: 8, constructor: SNAP }
@@ -80,7 +80,7 @@ export class SNAP extends Protocol {
       payload = snappy.compress(payload)
     }
 
-    this._send(code, payload)
+    this._sendMessage(code, payload)
   }
 
   getMsgPrefix(msgCode: SNAP.MESSAGE_CODES): string {

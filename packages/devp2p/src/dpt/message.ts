@@ -1,5 +1,5 @@
 import { RLP } from '@ethereumjs/rlp'
-import { bytesToInt, intToBytes } from '@ethereumjs/util'
+import { bigIntToBytes, bytesToBigInt, bytesToInt, intToBytes } from '@ethereumjs/util'
 import { debug as createDebugLogger } from 'debug'
 import { ecdsaRecover, ecdsaSign } from 'ethereum-cryptography/secp256k1-compat'
 import {
@@ -172,43 +172,24 @@ const enrrequest = {
 
 type InENRResponseMsg = {
   hash: Uint8Array
-  id: string
-  publicKey: Uint8Array
-  v4: PeerInfo
-  v6: PeerInfo
+  signature: Uint8Array
+  seq: bigint
+  kv: { k: Uint8Array; v: Uint8Array }[]
 }
 type OutENRResponseMsg = { [0]: Uint8Array; [1]: Uint8Array[] }
 const enrresponse = {
   encode(obj: InENRResponseMsg): OutENRResponseMsg {
     return [
       obj.hash,
-      [
-        utf8ToBytes(obj.id),
-        obj.publicKey,
-        address.encode(obj.v4.address!),
-        port.encode(obj.v4.tcpPort ?? null),
-        port.encode(obj.v4.udpPort ?? null),
-        address.encode(obj.v6.address!),
-        port.encode(obj.v6.tcpPort ?? null),
-        port.encode(obj.v6.udpPort ?? null),
-      ],
+      [obj.signature, bigIntToBytes(obj.seq), ...obj.kv.map((entry) => [entry.k, entry.v]).flat()],
     ]
   },
   decode(payload: OutENRResponseMsg): InENRResponseMsg {
     return {
       hash: payload[0],
-      id: bytesToUtf8(payload[1][0]),
-      publicKey: payload[1][1],
-      v4: {
-        address: address.decode(payload[1][2]),
-        tcpPort: port.decode(payload[1][3]),
-        udpPort: port.decode(payload[1][4]),
-      },
-      v6: {
-        address: address.decode(payload[1][5]),
-        tcpPort: port.decode(payload[1][6]),
-        udpPort: port.decode(payload[1][7]),
-      },
+      signature: payload[1][0],
+      seq: bytesToBigInt(payload[1][1]),
+      kv: [],
     }
   },
 }

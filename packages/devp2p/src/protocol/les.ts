@@ -23,19 +23,15 @@ export class LES extends Protocol {
   _status: LES.Status | null = null
   _peerStatus: LES.Status | null = null
 
-  constructor(version: number, peer: Peer, send: SendMethod) {
-    super(peer, send, EthProtocol.LES, version, LES.MESSAGE_CODES)
-
-    this._statusTimeoutId = setTimeout(() => {
-      this._peer.disconnect(DISCONNECT_REASONS.TIMEOUT)
-    }, 5000) // 5 sec * 1000
+  constructor(version: number, peer: Peer, offset: number, length: number) {
+    super(peer, offset, length, EthProtocol.LES, version, LES.MESSAGE_CODES)
   }
 
-  static les2 = { name: 'les', version: 2, length: 21, constructor: LES }
-  static les3 = { name: 'les', version: 3, length: 23, constructor: LES }
-  static les4 = { name: 'les', version: 4, length: 23, constructor: LES }
+  static les2 = { name: 'les', version: 2, length: 22, constructor: LES }
+  static les3 = { name: 'les', version: 3, length: 24, constructor: LES }
+  static les4 = { name: 'les', version: 4, length: 24, constructor: LES }
 
-  _handleMessage(code: LES.MESSAGE_CODES, data: any) {
+  override _handleMessage(code: LES.MESSAGE_CODES, data: any) {
     const payload = RLP.decode(data)
     const messageName = this.getMsgPrefix(code)
     const debugMsg = `Received ${messageName} message from ${this._peer._socket.remoteAddress}:${this._peer._socket.remotePort}`
@@ -190,7 +186,7 @@ export class LES extends Protocol {
       payload = snappy.compress(payload)
     }
 
-    this._send(LES.MESSAGE_CODES.STATUS, payload)
+    this._sendMessage(LES.MESSAGE_CODES.STATUS, payload)
     this._handleStatus()
   }
 
@@ -250,7 +246,7 @@ export class LES extends Protocol {
       payload = snappy.compress(payload)
     }
 
-    this._send(code, payload)
+    this._sendMessage(code, payload)
   }
 
   getMsgPrefix(msgCode: LES.MESSAGE_CODES) {

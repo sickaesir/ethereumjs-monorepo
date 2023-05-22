@@ -228,17 +228,6 @@ export class Server extends EventEmitter {
           udpPort: rinfo.port,
           address: rinfo.address,
         }
-        this._send(remote, 'enrresponse', {
-          hash: msg.subarray(0, 32),
-          id: 'v4',
-          publicKey: secp256k1.getPublicKey(this._privateKey),
-          v4: this._endpoint,
-          v6: {
-            address: '::1',
-            tcpPort: this._endpoint.tcpPort,
-            udpPort: this._endpoint.udpPort,
-          },
-        })
         break
       }
     }
