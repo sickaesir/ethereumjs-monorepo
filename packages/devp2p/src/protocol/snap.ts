@@ -7,7 +7,6 @@ import { formatLogData } from '../util'
 import { EthProtocol, Protocol } from './protocol'
 
 import type { Peer } from '../rlpx/peer'
-import type { SendMethod } from './protocol'
 
 export class SNAP extends Protocol {
   constructor(version: number, peer: Peer, offset: number, length: number) {

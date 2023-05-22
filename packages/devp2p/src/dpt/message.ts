@@ -2,14 +2,7 @@ import { RLP } from '@ethereumjs/rlp'
 import { bigIntToBytes, bytesToBigInt, bytesToInt, intToBytes } from '@ethereumjs/util'
 import { debug as createDebugLogger } from 'debug'
 import { ecdsaRecover, ecdsaSign } from 'ethereum-cryptography/secp256k1-compat'
-import {
-  bytesToHex,
-  bytesToUtf8,
-  concatBytes,
-  hexToBytes,
-  utf8ToBytes,
-} from 'ethereum-cryptography/utils'
-import { ProtocolCodes } from '../dns/enr'
+import { bytesToHex, bytesToUtf8, concatBytes } from 'ethereum-cryptography/utils'
 
 import {
   assertEq,

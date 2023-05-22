@@ -17,10 +17,10 @@ import { devp2pDebug, formatLogData } from '../util'
 import { ECIES } from './ecies'
 
 import type { ETH, LES } from '..'
+import type { Protocol } from '../protocol/protocol'
 import type { Common } from '@ethereumjs/common'
 import type { Debugger } from 'debug'
 import type { Socket } from 'net'
-import { Protocol } from '../protocol/protocol'
 
 const DEBUG_BASE_NAME = 'rlpx:peer'
 const verbose = createDebugLogger('verbose').enabled
@@ -405,7 +405,7 @@ export class Peer extends EventEmitter {
       }
     }
 
-    let protoRW = Object.keys(shared)
+    const protoRW = Object.keys(shared)
       .map((key) => shared[key])
       .sort((obj1, obj2) => (obj1.name < obj2.name ? -1 : 1))
 
@@ -653,7 +653,7 @@ export class Peer extends EventEmitter {
     return this._hello
   }
 
-  getProtocols<T extends ETH | LES>(): (ETH | LES)[] {
+  getProtocols(): (ETH | LES)[] {
     return this._protocols
   }
 
