@@ -1,26 +1,18 @@
+import { bigIntToBytes, bytesToPrefixedHexString } from '@ethereumjs/util'
 import { debug as createDebugLogger } from 'debug'
 import * as dgram from 'dgram'
-import { bytesToHex, concatBytes, hexToBytes, utf8ToBytes } from 'ethereum-cryptography/utils'
+import { bytesToHex, hexToBytes } from 'ethereum-cryptography/utils'
 import { EventEmitter } from 'events'
 
-import {
-  createDeferred,
-  devp2pDebug,
-  formatLogId,
-  ipToBytes,
-  keccak256,
-  pk2id,
-  validateForkId,
-} from '../util'
+import { createDeferred, devp2pDebug, formatLogId, pk2id, validateForkId } from '../util'
 
 import { decode, encode } from './message'
 
 import type { DPT, PeerInfo } from './dpt'
+import type { Common } from '@ethereumjs/common'
 import type { Debugger } from 'debug'
 import type { Socket as DgramSocket, RemoteInfo } from 'dgram'
 import type LRUCache from 'lru-cache'
-import { bigIntToBytes, bytesToPrefixedHexString } from '@ethereumjs/util'
-import { Common } from '@ethereumjs/common'
 
 const LRU = require('lru-cache')
 
@@ -232,6 +224,7 @@ export class Server extends EventEmitter {
           'peers',
           info.data.peers.map((peer: any) => peer.endpoint)
         )
+        break
       }
 
       case 'enrresponse': {
@@ -242,7 +235,7 @@ export class Server extends EventEmitter {
           address: info.data.ip,
         }
 
-        if (this._common && info.data.forkId) {
+        if (this._common && info.data.forkId !== undefined) {
           try {
             validateForkId(
               info.data.forkId,

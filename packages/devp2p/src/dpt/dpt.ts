@@ -9,8 +9,8 @@ import { BanList } from './ban-list'
 import { KBucket } from './kbucket'
 import { Server as DPTServer } from './server'
 
+import type { Common } from '@ethereumjs/common'
 import type { Debugger } from 'debug'
-import { Common } from '@ethereumjs/common'
 
 const DEBUG_BASE_NAME = 'dpt'
 

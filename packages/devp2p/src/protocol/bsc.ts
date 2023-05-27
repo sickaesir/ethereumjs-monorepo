@@ -1,4 +1,5 @@
 import { RLP, utils } from '@ethereumjs/rlp'
+import { intToBytes } from '@ethereumjs/util'
 import { bytesToHex } from 'ethereum-cryptography/utils'
 import * as snappy from 'snappyjs'
 
@@ -7,7 +8,6 @@ import { formatLogData } from '../util'
 import { EthProtocol, Protocol } from './protocol'
 
 import type { Peer } from '../rlpx/peer'
-import { intToBytes } from '@ethereumjs/util'
 
 export class BSC extends Protocol {
   constructor(version: number, peer: Peer, offset: number, length: number) {

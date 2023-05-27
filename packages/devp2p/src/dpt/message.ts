@@ -1,12 +1,7 @@
 import { RLP } from '@ethereumjs/rlp'
-import {
-  bigIntToBytes,
-  bytesToBigInt,
-  bytesToInt,
-  hexStringToBytes,
-  intToBytes,
-} from '@ethereumjs/util'
+import { bigIntToBytes, bytesToBigInt, bytesToInt, intToBytes } from '@ethereumjs/util'
 import { debug as createDebugLogger } from 'debug'
+import { secp256k1 } from 'ethereum-cryptography/secp256k1'
 import { ecdsaRecover, ecdsaSign } from 'ethereum-cryptography/secp256k1-compat'
 import { bytesToHex, bytesToUtf8, concatBytes, utf8ToBytes } from 'ethereum-cryptography/utils'
 
@@ -21,7 +16,6 @@ import {
 } from '../util'
 
 import type { PeerInfo } from './dpt'
-import { secp256k1 } from 'ethereum-cryptography/secp256k1'
 
 const debug = createDebugLogger('devp2p:dpt:server')
 
@@ -91,7 +85,7 @@ const endpoint = {
 type InPing = { [0]: Uint8Array; [1]: Uint8Array[]; [2]: Uint8Array[]; [3]: Uint8Array }
 type OutPing = { version: number; from: PeerInfo; to: PeerInfo; timestamp: number }
 const ping = {
-  encode(obj: OutPing, privateKey: Uint8Array): InPing {
+  encode(obj: OutPing /*, privateKey: Uint8Array*/): InPing {
     return [
       intToBytes(obj.version),
       endpoint.encode(obj.from),
@@ -112,7 +106,7 @@ const ping = {
 type OutPong = { to: PeerInfo; hash: Uint8Array; timestamp: number }
 type InPong = { [0]: Uint8Array[]; [1]: Uint8Array[]; [2]: Uint8Array }
 const pong = {
-  encode(obj: OutPong, privateKey: Uint8Array) {
+  encode(obj: OutPong /*, privateKey: Uint8Array*/) {
     return [endpoint.encode(obj.to), obj.hash, timestamp.encode(obj.timestamp)]
   },
   decode(payload: InPong) {
@@ -127,7 +121,7 @@ const pong = {
 type OutFindMsg = { id: string; timestamp: number }
 type InFindMsg = { [0]: string; [1]: Uint8Array }
 const findneighbours = {
-  encode(obj: OutFindMsg, privateKey: Uint8Array): InFindMsg {
+  encode(obj: OutFindMsg /*, privateKey: Uint8Array*/): InFindMsg {
     return [obj.id, timestamp.encode(obj.timestamp)]
   },
   decode(payload: InFindMsg): OutFindMsg {
@@ -141,7 +135,7 @@ const findneighbours = {
 type InNeighborMsg = { peers: PeerInfo[]; timestamp: number }
 type OutNeighborMsg = { [0]: Uint8Array[][]; [1]: Uint8Array }
 const neighbours = {
-  encode(obj: InNeighborMsg, privateKey: Uint8Array): OutNeighborMsg {
+  encode(obj: InNeighborMsg /*, privateKey: Uint8Array*/): OutNeighborMsg {
     return [
       obj.peers.map((peer: PeerInfo) => endpoint.encode(peer).concat(peer.id! as Uint8Array)),
       timestamp.encode(obj.timestamp),
@@ -160,7 +154,7 @@ const neighbours = {
 type InENRRequestMsg = { timestamp: number }
 type OutENRRequestMsg = { [0]: Uint8Array }
 const enrrequest = {
-  encode(obj: InENRRequestMsg, privateKey: Uint8Array): OutENRRequestMsg {
+  encode(obj: InENRRequestMsg /*, privateKey: Uint8Array*/): OutENRRequestMsg {
     return [timestamp.encode(obj.timestamp)]
   },
   decode(payload: OutENRRequestMsg): InENRRequestMsg {
@@ -190,26 +184,22 @@ type OutENRResponseMsg = { [0]: Uint8Array; [1]: Uint8Array[] }
 const enrresponse = {
   encode(obj: InENRResponseMsg, privateKey: Uint8Array): OutENRResponseMsg {
     const kv: { k: string; v: any }[] = []
-    ;[
-      { k: 'id', v: utf8ToBytes('v4') },
-      { k: 'secp256k1', v: secp256k1.getPublicKey(privateKey, true) },
-    ]
 
-    if (!obj.id) obj.id = 'v4'
-    if (!obj.publicKey) obj.publicKey = secp256k1.getPublicKey(privateKey, true)
+    if (obj.id === undefined) obj.id = 'v4'
+    if (obj.publicKey === undefined) obj.publicKey = secp256k1.getPublicKey(privateKey, true)
 
     kv.push({ k: 'id', v: utf8ToBytes(obj.id) })
     kv.push({ k: 'secp256k1', v: obj.publicKey })
-    if (obj.ip) kv.push({ k: 'ip', v: address.encode(obj.ip) })
-    if (obj.tcp) kv.push({ k: 'tcp', v: port.encode(obj.tcp) })
-    if (obj.udp) kv.push({ k: 'udp', v: port.encode(obj.udp) })
-    if (obj.ip6) kv.push({ k: 'ip6', v: address.encode(obj.ip6) })
-    if (obj.tcp6) kv.push({ k: 'tcp6', v: port.encode(obj.tcp6) })
-    if (obj.udp6) kv.push({ k: 'udp6', v: port.encode(obj.udp6) })
+    if (obj.ip !== undefined) kv.push({ k: 'ip', v: address.encode(obj.ip) })
+    if (obj.tcp !== undefined) kv.push({ k: 'tcp', v: port.encode(obj.tcp) })
+    if (obj.udp !== undefined) kv.push({ k: 'udp', v: port.encode(obj.udp) })
+    if (obj.ip6 !== undefined) kv.push({ k: 'ip6', v: address.encode(obj.ip6) })
+    if (obj.tcp6 !== undefined) kv.push({ k: 'tcp6', v: port.encode(obj.tcp6) })
+    if (obj.udp6 !== undefined) kv.push({ k: 'udp6', v: port.encode(obj.udp6) })
     if (obj.forkId) kv.push({ k: 'eth', v: [[obj.forkId[0], obj.forkId[1]]] })
     if (obj.snap) kv.push({ k: 'snap', v: [] })
     if (obj.bsc) kv.push({ k: 'bsc', v: [] })
-    if (obj.les) kv.push({ k: 'les', v: [obj.les] })
+    if (obj.les !== undefined) kv.push({ k: 'les', v: [obj.les] })
 
     const content = [
       bigIntToBytes(obj.seq),
@@ -232,7 +222,7 @@ const enrresponse = {
         v: kvPayload[i + 1],
       })
     }
-    const signature = payload[1][0]
+    //const signature = payload[1][0]
 
     const obj: InENRResponseMsg = {
       hash: payload[0],
