@@ -91,6 +91,11 @@
       "name": "planck",
       "block": 27281024,
       "forkHash": "0xf98d1072"
+    },
+    {
+      "name": "luban",
+      "block": 29020050,
+      "forkHash": "0x2995c52a"
     }
   ],
   "bootstrapNodes": [
@@ -286,6 +291,90 @@
       "ip": "54.78.102.178",
       "port": 30311,
       "comment": "BSC Static Node 30"
+    },
+    {
+      "id": "47de9d7808f339b55c5d958ba3a644c2423731de269fa926d8c78eb0b864e4c78734314dd1fc6439a99f1d4c0dab48d57f8a0bfa4b82ffcbf6547f880c41d079",
+      "ip": "52.202.229.96",
+      "port": 30311,
+      "comment": "BSC Static Node 31"
+    },
+    {
+      "id": "5d54b9a5af87c3963cc619fe4ddd2ed7687e98363bfd1854f243b71a2225d33b9c9290e047d738e0c7795b4bc78073f0eb4d9f80f572764e970e23d02b3c2b1f",
+      "ip": "34.247.177.253",
+      "port": 30311,
+      "comment": "BSC Static Node 32"
+    },
+    {
+      "id": "5df2f71ae6b2e3bb92f92badbce1f601feabd2d6ce899cf8265c39c38ff446136d74f5bfa089532c7074bb7606a509a54a2ac66397aaaab2363dad3f43c687a8",
+      "ip": "79.125.103.83",
+      "port": 30311,
+      "comment": "BSC Static Node 33"
+    },
+    {
+      "id": "d54499eb86df0f28d91906cef4f648360b636f923d58567865b83508fb97d2e95d2ce3e3a594facb73230b9e19172a534ce5af3f528599d0d1e52632438aa864",
+      "ip": "44.200.226.84",
+      "port": 30311,
+      "comment": "BSC Static Node 34"
+    },
+    {
+      "id": "84a76ad1fab6164cbb00179dd07c96755141ffb75d5d387f45295e6ecfcc9e12a720f1f3dca8318449eeff768d13e9d49a414d2b522d1bcf2919aebf4852ab46",
+      "ip": "44.198.58.179",
+      "port": 30311,
+      "comment": "BSC Static Node 35"
+    },
+    {
+      "id": "453a3be470d06e9a96cf156b6d3e3b0ea172d3296aa23a2e6a334a100dc603a289b46f73244a8a0867e66560ed07f77efd722b4bfcbac96dd0a3216a055f0446",
+      "ip": "52.17.25.179",
+      "port": 30311,
+      "comment": "BSC Static Node 36"
+    },
+    {
+      "id": "d69853daf3057cc191514afdf56df4769238fde4f261fab80c6e089480abb9916d61180e783d1cc9e5ae56d30ce6261d9954702dc73c41cd47e4b3961830b2dc",
+      "ip": "184.73.34.17",
+      "port": 30311,
+      "comment": "BSC Static Node 37"
+    },
+    {
+      "id": "c014bbf48209cdf8ca6d3bf3ff5cf2fade45104283dcfc079df6c64e0f4b65e4afe28040fa1731a0732bd9cbb90786cf78f0174b5de7bd5b303088e80d8e6a83",
+      "ip": "54.74.101.143",
+      "port": 30311,
+      "comment": "BSC Static Node 38"
+    },
+    {
+      "id": "6e8d5cd8bcacd12a1219e8abb317c10b57c8c5b7e9908ad6d924dd1397f75b27cd7055c3c0f9714ff8bfe2f67c1301c9a19144d34c78134ce17c6c2cc232eb24",
+      "ip": "44.200.5.100",
+      "port": 30311,
+      "comment": "BSC Static Node 39"
+    },
+    {
+      "id": "5fa49c3fc694fcba46199c4ac932a84a89435d545b04a3a68d47747fee41d417d8033c953f9c54ca943cb3d7eb82f936ab1f6ec93bb14ce466de4bcd50d410a5",
+      "ip": "44.201.87.43",
+      "port": 30311,
+      "comment": "BSC Static Node 40"
+    },
+    {
+      "id": "6c575b4deb87f9f0015043fc5659342903ad6d2cec6242f0880c3cf8dc2f43b62264f8fe35f95a2e283e116cc4f5fa9278f607898cb52bf16c43bfa55695b8da",
+      "ip": "54.75.74.232",
+      "port": 30311,
+      "comment": "BSC Static Node 41"
+    },
+    {
+      "id": "164753d39a95261326c1caadcee53db846b536d3ee4c87822270f07a48c78b69a2ac723e19dd10bfd87cf3e1408ae60571267daca182cc7800520cd959d7707b",
+      "ip": "18.207.208.40",
+      "port": 30311,
+      "comment": "BSC Static Node 42"
+    },
+    {
+      "id": "c307b4cddec0aea2188eafddedb0a076b9289402c63217b4c81eb7f34761c7cfaf6b075e93d7357169e226ff1bb4aa3bd71869b4c76cf261e2991005ddb4d4aa",
+      "ip": "3.81.81.182",
+      "port": 30311,
+      "comment": "BSC Static Node 43"
+    },
+    {
+      "id": "9b7ff9e2d2154f6de3f53db2123e6f9a6b5b29414d9d5ae8277592b361158c25fcab86e6bfad5ef6554c6d92fb4ca897f7342563e355b80bcdc994f9c268dc2f",
+      "ip": "34.251.95.115",
+      "port": 30311,
+      "comment": "BSC Static Node 44"
     }
   ],
   "dnsNetworks": []

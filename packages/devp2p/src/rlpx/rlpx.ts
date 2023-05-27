@@ -258,20 +258,6 @@ export class RLPx extends EventEmitter {
         )
       }
 
-      if (disconnectWe !== true && reason === DISCONNECT_REASONS.TOO_MANY_PEERS) {
-        // hack
-        if (this._getOpenQueueSlots() > 0) {
-          this._peersQueue.push({
-            peer: {
-              id: peer.getId()!,
-              address: peer._socket.remoteAddress,
-              tcpPort: peer._socket.remotePort,
-            },
-            ts: (Date.now() + 300000) as number, // 5 min * 60 * 1000
-          })
-        }
-      }
-
       const id = peer.getId()
       if (id) {
         const peerKey = bytesToHex(id)

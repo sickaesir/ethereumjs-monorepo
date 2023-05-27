@@ -11,6 +11,7 @@ export enum EthProtocol { // What does this represent?
   ETH = 'eth',
   LES = 'les',
   SNAP = 'snap',
+  BSC = 'bsc',
 }
 
 type MessageCodes = { [key: number | string]: number | string }

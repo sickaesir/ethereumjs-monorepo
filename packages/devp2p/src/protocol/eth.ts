@@ -11,7 +11,7 @@ import {
 import { hexToBytes } from 'ethereum-cryptography/utils'
 import * as snappy from 'snappyjs'
 
-import { assertEq, formatLogData, formatLogId } from '../util'
+import { assertEq, formatLogData, formatLogId, validateForkId } from '../util'
 
 import { EthProtocol, Protocol } from './protocol'
 
@@ -53,7 +53,7 @@ export class ETH extends Protocol {
   static eth65 = { name: 'eth', version: 65, length: 17, constructor: ETH }
   static eth66 = { name: 'eth', version: 66, length: 17, constructor: ETH }
   static eth67 = { name: 'eth', version: 67, length: 18, constructor: ETH }
-  //static eth68 = { name: 'eth', version: 68, length: 18, constructor: ETH }
+  static eth68 = { name: 'eth', version: 68, length: 18, constructor: ETH }
 
   override _handleMessage(code: ETH.MESSAGE_CODES, data: any) {
     const payload = RLP.decode(data)
@@ -127,53 +127,6 @@ export class ETH extends Protocol {
     this.emit('message', code, payload)
   }
 
-  /**
-   * Eth 64 Fork ID validation (EIP-2124)
-   * @param forkId Remote fork ID
-   */
-  _validateForkId(forkId: Uint8Array[]) {
-    const c = this._peer._common
-
-    const peerForkHash = bytesToPrefixedHexString(forkId[0])
-    const peerNextFork = bytesToBigInt(forkId[1])
-
-    if (this._forkHash === peerForkHash) {
-      // There is a known next fork
-      if (peerNextFork > BigInt(0)) {
-        if (this._latestBlock >= peerNextFork) {
-          const msg = 'Remote is advertising a future fork that passed locally'
-          if (this.DEBUG) {
-            this.debug('STATUS', msg)
-          }
-          throw new Error(msg)
-        }
-      }
-    }
-    const peerFork: any = c.hardforkForForkHash(peerForkHash)
-    if (peerFork === null) {
-      const msg = 'Unknown fork hash'
-      if (this.DEBUG) {
-        this.debug('STATUS', msg)
-      }
-      throw new Error(msg)
-    }
-
-    if (c.hardforkGteHardfork(peerFork.name, this._hardfork) === false) {
-      const nextHardforkBlock = c.nextHardforkBlockOrTimestamp(peerFork.name)
-      if (
-        peerNextFork === null ||
-        nextHardforkBlock === null ||
-        nextHardforkBlock !== peerNextFork
-      ) {
-        const msg = 'Outdated fork status, remote needs software update'
-        if (this.DEBUG) {
-          this.debug('STATUS', msg)
-        }
-        throw new Error(msg)
-      }
-    }
-  }
-
   _handleStatus(): void {
     if (this._status === null || this._peerStatus === null) return
     clearTimeout(this._statusTimeoutId!)
@@ -215,7 +168,8 @@ export class ETH extends Protocol {
         this.debug.bind(this),
         'STATUS'
       )
-      this._validateForkId(this._peerStatus[5] as Uint8Array[])
+
+      validateForkId(this._peerStatus[5] as Uint8Array[], this._latestBlock, this._peer._common)
       status['forkId'] = this._peerStatus[5]
     }
 
@@ -301,7 +255,7 @@ export class ETH extends Protocol {
     }
 
     this._sendMessage(ETH.MESSAGE_CODES.STATUS, payload)
-    this._handleStatus()
+    //this._handleStatus()
   }
 
   sendMessage(code: ETH.MESSAGE_CODES, payload: any) {

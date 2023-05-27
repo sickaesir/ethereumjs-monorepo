@@ -1,9 +1,17 @@
 import { debug as createDebugLogger } from 'debug'
 import * as dgram from 'dgram'
-import { bytesToHex } from 'ethereum-cryptography/utils'
+import { bytesToHex, concatBytes, hexToBytes, utf8ToBytes } from 'ethereum-cryptography/utils'
 import { EventEmitter } from 'events'
 
-import { createDeferred, devp2pDebug, formatLogId, pk2id } from '../util'
+import {
+  createDeferred,
+  devp2pDebug,
+  formatLogId,
+  ipToBytes,
+  keccak256,
+  pk2id,
+  validateForkId,
+} from '../util'
 
 import { decode, encode } from './message'
 
@@ -11,6 +19,8 @@ import type { DPT, PeerInfo } from './dpt'
 import type { Debugger } from 'debug'
 import type { Socket as DgramSocket, RemoteInfo } from 'dgram'
 import type LRUCache from 'lru-cache'
+import { bigIntToBytes, bytesToPrefixedHexString } from '@ethereumjs/util'
+import { Common } from '@ethereumjs/common'
 
 const LRU = require('lru-cache')
 
@@ -40,6 +50,8 @@ export interface DPTServerOptions {
    * Default: dgram-created socket
    */
   createSocket?: Function
+
+  common?: Common
 }
 
 export class Server extends EventEmitter {
@@ -51,6 +63,7 @@ export class Server extends EventEmitter {
   _requestsCache: LRUCache<string, Promise<any>>
   _socket: DgramSocket | null
   _debug: Debugger
+  _common?: Common
 
   constructor(dpt: DPT, privateKey: Uint8Array, options: DPTServerOptions) {
     super()
@@ -62,6 +75,7 @@ export class Server extends EventEmitter {
     this._endpoint = options.endpoint ?? { address: '0.0.0.0', udpPort: null, tcpPort: null }
     this._requests = new Map()
     this._requestsCache = new LRU({ max: 1000, ttl: 1000, stale: false }) // 1 sec * 1000
+    this._common = options.common
 
     const createSocket = options.createSocket ?? dgram.createSocket.bind(null, { type: 'udp4' })
     this._socket = createSocket()
@@ -218,10 +232,63 @@ export class Server extends EventEmitter {
           'peers',
           info.data.peers.map((peer: any) => peer.endpoint)
         )
+      }
+
+      case 'enrresponse': {
+        const remote: PeerInfo = {
+          id: peerId,
+          udpPort: info.data.udp,
+          tcpPort: info.data.tcp,
+          address: info.data.ip,
+        }
+
+        if (this._common && info.data.forkId) {
+          try {
+            validateForkId(
+              info.data.forkId,
+              this._common.hardforkBlock(this._common.hardfork())!,
+              this._common
+            )
+          } catch (e) {
+            this.debug(
+              info.typename,
+              `failed to validate peer fork ${bytesToPrefixedHexString(info.data.forkId[0])}: ${e}`
+            )
+            break
+          }
+        }
+
+        this.emit('peers', [remote])
         break
       }
 
       case 'enrrequest': {
+        const remote: PeerInfo = {
+          id: peerId,
+          udpPort: rinfo.port,
+          address: rinfo.address,
+        }
+
+        let forkId = undefined
+        if (this._common) {
+          const hf = this._common._getHardfork(this._common.hardfork())
+          const bn = this._common.nextHardforkBlockOrTimestamp(this._common.hardfork())
+          forkId = [hexToBytes(hf!.forkHash!), bigIntToBytes(bn ?? BigInt(0))]
+        }
+
+        const seq = BigInt(1)
+
+        this._send(remote, 'enrresponse', {
+          hash: msg.subarray(0, 32),
+          seq,
+          ip: this._endpoint.address,
+          tcp: this._endpoint.tcpPort,
+          udp: this._endpoint.udpPort,
+          forkId,
+          les: 1,
+          bsc: true,
+          snap: true,
+        })
         break
       }
     }

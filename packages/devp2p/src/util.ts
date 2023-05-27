@@ -7,6 +7,8 @@ import { bytesToHex, concatBytes, equalsBytes } from 'ethereum-cryptography/util
 
 import type { ETH } from './protocol/eth'
 import type { LES } from './protocol/les'
+import { Common } from '@ethereumjs/common'
+import { bytesToBigInt, bytesToPrefixedHexString } from '@ethereumjs/util'
 
 export const devp2pDebug = createDebugLogger('devp2p')
 
@@ -220,3 +222,37 @@ export const ipToBytes = (ip: string, bytes?: Uint8Array, offset: number = 0) =>
 }
 
 /************  End of methods borrowed from `node-ip` ***************************/
+
+/**
+ * Eth 64 Fork ID validation (EIP-2124)
+ * @param forkId Remote fork ID
+ */
+export const validateForkId = (forkId: Uint8Array[], latestBlock: bigint, common: Common) => {
+  const peerForkHash = bytesToPrefixedHexString(forkId[0])
+  const peerNextFork = bytesToBigInt(forkId[1])
+
+  const localHardfork = common._getHardfork(common.hardfork())
+
+  if (localHardfork?.forkHash === peerForkHash) {
+    // There is a known next fork
+    if (peerNextFork > BigInt(0)) {
+      if (latestBlock >= peerNextFork) {
+        const msg = 'Remote is advertising a future fork that passed locally'
+        throw new Error(msg)
+      }
+    }
+  }
+  const peerFork: any = common.hardforkForForkHash(peerForkHash)
+  if (peerFork === null) {
+    const msg = 'Unknown fork hash'
+    throw new Error(msg)
+  }
+
+  if (common.hardforkGteHardfork(peerFork.name, common.hardfork()) === false) {
+    const nextHardforkBlock = common.nextHardforkBlockOrTimestamp(peerFork.name)
+    if (peerNextFork === null || nextHardforkBlock === null || nextHardforkBlock !== peerNextFork) {
+      const msg = 'Outdated fork status, remote needs software update'
+      throw new Error(msg)
+    }
+  }
+}

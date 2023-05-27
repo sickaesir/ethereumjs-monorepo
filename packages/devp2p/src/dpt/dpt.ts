@@ -10,6 +10,7 @@ import { KBucket } from './kbucket'
 import { Server as DPTServer } from './server'
 
 import type { Debugger } from 'debug'
+import { Common } from '@ethereumjs/common'
 
 const DEBUG_BASE_NAME = 'dpt'
 
@@ -83,6 +84,8 @@ export interface DPTOptions {
    * DNS server to query DNS TXT records from for peer discovery
    */
   dnsAddr?: string
+
+  common?: Common
 }
 
 export class DPT extends EventEmitter {
@@ -101,6 +104,7 @@ export class DPT extends EventEmitter {
   private _dnsRefreshQuantity: number
   private _dnsNetworks: string[]
   private _dnsAddr: string
+  private _probePeers: PeerInfo[]
 
   constructor(privateKey: Uint8Array, options: DPTOptions) {
     super()
@@ -109,6 +113,8 @@ export class DPT extends EventEmitter {
     this._id = pk2id(secp256k1.getPublicKey(this.privateKey, false))
     this._shouldFindNeighbours = options.shouldFindNeighbours ?? true
     this._shouldGetDnsPeers = options.shouldGetDnsPeers ?? false
+    this._probePeers = []
+
     // By default, tries to connect to 12 new peers every 3s
     this._dnsRefreshQuantity = Math.floor((options.dnsRefreshQuantity ?? 25) / 2)
     this._dnsNetworks = options.dnsNetworks ?? []
@@ -126,6 +132,7 @@ export class DPT extends EventEmitter {
       timeout: options.timeout,
       endpoint: options.endpoint,
       createSocket: options.createSocket,
+      common: options.common,
     })
     this._server.once('listening', () => this.emit('listening'))
     this._server.once('close', () => this.emit('close'))
@@ -212,6 +219,11 @@ export class DPT extends EventEmitter {
       const peer = await this._server.ping(obj)
       this.emit('peer:new', peer)
       this._kbucket.add(peer)
+
+      if (!this._probePeers.map((peer) => peer.id).includes(obj.id)) {
+        this._probePeers.push(peer)
+      }
+
       return peer
     } catch (err: any) {
       this.banlist.add(obj, 300000) // 5 min * 60 * 1000
@@ -249,7 +261,7 @@ export class DPT extends EventEmitter {
       // Rotating selection counter going in loop from 0..9
       this._refreshIntervalSelectionCounter = (this._refreshIntervalSelectionCounter + 1) % 10
 
-      const peers = this.getPeers()
+      const peers = this._probePeers
       this._debug(
         `call .refresh() (selector ${this._refreshIntervalSelectionCounter}) (${peers.length} peers in table)`
       )

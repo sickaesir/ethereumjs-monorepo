@@ -1,0 +1,17 @@
+{
+  "name": "luban",
+  "comment": "BSC Luban hardfork",
+  "url": "",
+  "status": "Final",
+  "gasPrices": {
+    "tx": {
+      "v": 3000
+    }
+  },
+  "vm": {
+    "maxExtraDataSize": {
+      "v": 1024,
+      "d": "Maximum size extra data may be after Genesis (adjusted for bsc where the parlia consensus is used)"
+    }
+  }
+}

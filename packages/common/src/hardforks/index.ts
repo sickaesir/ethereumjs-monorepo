@@ -26,4 +26,5 @@ export const hardforks = {
   moran: require('./moran.json'),
   gibbs: require('./gibbs.json'),
   planck: require('./planck.json'),
+  luban: require('./luban.json'),
 }

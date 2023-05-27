@@ -389,11 +389,15 @@ export class Peer extends EventEmitter {
     }
 
     if (this._remoteClientIdFilter !== undefined) {
+      let whitelisted = false
       for (const filterStr of this._remoteClientIdFilter) {
         if (this._hello.clientId.toLowerCase().includes(filterStr.toLowerCase())) {
-          return this.disconnect(DISCONNECT_REASONS.USELESS_PEER)
+          whitelisted = true
+          break
         }
       }
+
+      if (!whitelisted) return this.disconnect(DISCONNECT_REASONS.USELESS_PEER)
     }
 
     const shared: any = {}
