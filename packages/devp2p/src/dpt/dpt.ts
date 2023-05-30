@@ -1,4 +1,4 @@
-import { bytesToInt, equalsBytes, hexStringToBytes, randomBytes } from '@ethereumjs/util'
+import { bytesToInt, randomBytes } from '@ethereumjs/util'
 import { secp256k1 } from 'ethereum-cryptography/secp256k1'
 import { EventEmitter } from 'events'
 

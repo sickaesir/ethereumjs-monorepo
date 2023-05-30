@@ -1,5 +1,4 @@
 import { RLP, utils } from '@ethereumjs/rlp'
-import { intToBytes } from '@ethereumjs/util'
 import { bytesToHex } from 'ethereum-cryptography/utils'
 import * as snappy from 'snappyjs'
 

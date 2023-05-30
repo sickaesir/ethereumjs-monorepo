@@ -4,14 +4,7 @@ import * as dgram from 'dgram'
 import { bytesToHex, equalsBytes, hexToBytes } from 'ethereum-cryptography/utils'
 import { EventEmitter } from 'events'
 
-import {
-  createDeferred,
-  devp2pDebug,
-  formatLogId,
-  pk2id,
-  sortByBytes,
-  validateForkId,
-} from '../util'
+import { createDeferred, devp2pDebug, formatLogId, pk2id, validateForkId } from '../util'
 
 import { decode, encode } from './message'
 
@@ -20,7 +13,6 @@ import type { Common } from '@ethereumjs/common'
 import type { Debugger } from 'debug'
 import type { Socket as DgramSocket, RemoteInfo } from 'dgram'
 import type LRUCache from 'lru-cache'
-import { randomBytes } from 'crypto'
 
 const LRU = require('lru-cache')
 
@@ -198,6 +190,9 @@ export class Server extends EventEmitter {
           udpPort: rinfo.port,
           address: rinfo.address,
         }
+        const pkey = bytesToHex(peerId)
+        if (!this._neighbours.has(pkey)) this._neighbours.set(pkey, [])
+
         this._send(remote, 'pong', {
           to: {
             address: rinfo.address,
@@ -236,15 +231,9 @@ export class Server extends EventEmitter {
       }
 
       case 'neighbours': {
-        const remote: PeerInfo = {
-          id: peerId,
-          udpPort: rinfo.port,
-          address: rinfo.address,
-        }
-
         const pkey = bytesToHex(peerId)
 
-        let neighbours: PeerInfo[] = info.data.peers
+        const neighbours: PeerInfo[] = info.data.peers
         //neighbours.sort((a: PeerInfo, b: PeerInfo) => sortByBytes(a.id!, b.id!))
 
         let currentNeighbours: PeerInfo[]
@@ -255,7 +244,7 @@ export class Server extends EventEmitter {
           currentNeighbours = this._neighbours.get(pkey)!
         }
 
-        let newNeighbours = neighbours.filter(
+        const newNeighbours = neighbours.filter(
           (peer) =>
             currentNeighbours.findIndex((currentPeer) => equalsBytes(currentPeer.id!, peer.id!)) < 0
         )

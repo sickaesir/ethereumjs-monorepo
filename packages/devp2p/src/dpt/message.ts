@@ -87,7 +87,7 @@ const peer = {
     return [...endpoint.encode(obj), obj.id!]
   },
   decode(payload: Uint8Array[]): PeerInfo {
-    let peer = endpoint.decode(payload)
+    const peer = endpoint.decode(payload)
     peer.id = payload[3]
     return peer
   },
