@@ -457,6 +457,7 @@ export class Peer extends EventEmitter {
    */
   _handlePing() {
     this._sendPong()
+    this.emit('ping', performance.now())
   }
 
   /**
@@ -464,6 +465,7 @@ export class Peer extends EventEmitter {
    */
   _handlePong() {
     clearTimeout(this._pingTimeoutId!)
+    this.emit('ping', performance.now())
   }
 
   /**

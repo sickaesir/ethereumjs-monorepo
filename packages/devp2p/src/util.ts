@@ -223,6 +223,18 @@ export const ipToBytes = (ip: string, bytes?: Uint8Array, offset: number = 0) =>
 
 /************  End of methods borrowed from `node-ip` ***************************/
 
+export const sortByBytes = (a: Uint8Array, b: Uint8Array): number => {
+  if (a.length > b.length) return 1
+  else if (a.length < b.length) return -1
+
+  for (let i = 0; i < a.length; i++) {
+    if (a.at(i)! > b.at(i)!) return 1
+    else if (a.at(i)! < b.at(i)!) return -1
+  }
+
+  return 0
+}
+
 /**
  * Eth 64 Fork ID validation (EIP-2124)
  * @param forkId Remote fork ID

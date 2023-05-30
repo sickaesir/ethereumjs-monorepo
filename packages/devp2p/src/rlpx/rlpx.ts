@@ -15,6 +15,7 @@ import type { Capabilities } from './peer'
 import type { Common } from '@ethereumjs/common'
 import type { Debugger } from 'debug'
 import type LRUCache from 'lru-cache'
+import { randomBytes } from 'crypto'
 
 // note: relative path only valid in .js file in dist
 
@@ -161,7 +162,11 @@ export class RLPx extends EventEmitter {
     })
 
     socket.once('error', deferred.reject)
-    socket.setTimeout(this._timeout, () => deferred.reject(new Error('Connection timeout')))
+    socket.setTimeout(this._timeout, () => {
+      socket.end()
+      this._peers.delete(peerKey)
+      deferred.reject(new Error('Connection timeout'))
+    })
     socket.connect(peer.tcpPort, peer.address, deferred.resolve)
 
     await deferred.promise
@@ -205,11 +210,14 @@ export class RLPx extends EventEmitter {
   _onConnect(socket: net.Socket, peerId: Uint8Array | null) {
     this._debug(`connected to ${socket.remoteAddress}:${socket.remotePort}, handshake waiting..`)
 
+    const peerKey = randomBytes(32)
+    const peerLocalId = pk2id(secp256k1.getPublicKey(peerKey, false))
+
     const peer: Peer = new Peer({
       socket,
       remoteId: peerId,
-      privateKey: this._privateKey,
-      id: this._id,
+      privateKey: peerKey,
+      id: peerLocalId,
       timeout: this._timeout,
       clientId: this._clientId,
       remoteClientIdFilter: this._remoteClientIdFilter,

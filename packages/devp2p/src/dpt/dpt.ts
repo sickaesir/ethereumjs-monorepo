@@ -1,4 +1,4 @@
-import { bytesToInt, randomBytes } from '@ethereumjs/util'
+import { bytesToInt, equalsBytes, hexStringToBytes, randomBytes } from '@ethereumjs/util'
 import { secp256k1 } from 'ethereum-cryptography/secp256k1'
 import { EventEmitter } from 'events'
 
@@ -104,7 +104,6 @@ export class DPT extends EventEmitter {
   private _dnsRefreshQuantity: number
   private _dnsNetworks: string[]
   private _dnsAddr: string
-  private _probePeers: PeerInfo[]
 
   constructor(privateKey: Uint8Array, options: DPTOptions) {
     super()
@@ -113,7 +112,6 @@ export class DPT extends EventEmitter {
     this._id = pk2id(secp256k1.getPublicKey(this.privateKey, false))
     this._shouldFindNeighbours = options.shouldFindNeighbours ?? true
     this._shouldGetDnsPeers = options.shouldGetDnsPeers ?? false
-    this._probePeers = []
 
     // By default, tries to connect to 12 new peers every 3s
     this._dnsRefreshQuantity = Math.floor((options.dnsRefreshQuantity ?? 25) / 2)
@@ -142,6 +140,7 @@ export class DPT extends EventEmitter {
     // because it results in duplicate calls for the same targets
     this._server.on('peers', (peers) => {
       if (!this._shouldFindNeighbours) return
+      this.emit('peer:discovered', peers)
       this._addPeerBatch(peers)
     })
 
@@ -183,6 +182,7 @@ export class DPT extends EventEmitter {
   _addPeerBatch(peers: PeerInfo[]): void {
     const DIFF_TIME_MS = 200
     let ms = 0
+
     for (const peer of peers) {
       setTimeout(() => {
         this.addPeer(peer).catch((error) => {
@@ -219,10 +219,6 @@ export class DPT extends EventEmitter {
       const peer = await this._server.ping(obj)
       this.emit('peer:new', peer)
       this._kbucket.add(peer)
-
-      if (!this._probePeers.map((peer) => peer.id).includes(obj.id)) {
-        this._probePeers.push(peer)
-      }
 
       return peer
     } catch (err: any) {
@@ -261,17 +257,16 @@ export class DPT extends EventEmitter {
       // Rotating selection counter going in loop from 0..9
       this._refreshIntervalSelectionCounter = (this._refreshIntervalSelectionCounter + 1) % 10
 
-      const peers = this._probePeers
-      this._debug(
-        `call .refresh() (selector ${this._refreshIntervalSelectionCounter}) (${peers.length} peers in table)`
-      )
+      this._debug(`call .refresh() (selector ${this._refreshIntervalSelectionCounter})`)
 
-      for (const peer of peers) {
-        // Randomly distributed selector based on peer ID
-        // to decide on subdivided execution
-        const selector = bytesToInt((peer.id as Uint8Array).subarray(0, 1)) % 10
-        if (selector === this._refreshIntervalSelectionCounter) {
-          this._server.findneighbours(peer, randomBytes(64))
+      for (const peer of this._server._neighbours) {
+        for (const neighbour of peer[1]) {
+          // Randomly distributed selector based on peer ID
+          // to decide on subdivided execution
+          const selector = bytesToInt((neighbour.id! as Uint8Array).subarray(0, 1)) % 10
+          if (selector === this._refreshIntervalSelectionCounter) {
+            this._server.findneighbours(neighbour, randomBytes(64))
+          }
         }
       }
     }

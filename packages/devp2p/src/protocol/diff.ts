@@ -9,14 +9,14 @@ import { EthProtocol, Protocol } from './protocol'
 
 import type { Peer } from '../rlpx/peer'
 
-export class BSC extends Protocol {
+export class DIFF extends Protocol {
   constructor(version: number, peer: Peer, offset: number, length: number) {
-    super(peer, offset, length, EthProtocol.BSC, version, BSC.MESSAGE_CODES)
+    super(peer, offset, length, EthProtocol.DIFF, version, DIFF.MESSAGE_CODES)
   }
 
-  static bsc = { name: 'bsc', version: 1, length: 2, constructor: BSC }
+  static diff = { name: 'diff', version: 1, length: 4, constructor: DIFF }
 
-  _handleMessage(code: BSC.MESSAGE_CODES, data: any) {
+  _handleMessage(code: DIFF.MESSAGE_CODES, data: any) {
     const payload = RLP.decode(data) as unknown
     const messageName = this.getMsgPrefix(code)
 
@@ -26,11 +26,13 @@ export class BSC extends Protocol {
     this.debug(messageName, `${debugMsg}: ${logData}`)
 
     switch (code) {
-      case BSC.MESSAGE_CODES.CAPABILITIES: {
+      case DIFF.MESSAGE_CODES.CAPABILITIES: {
         clearTimeout(this._statusTimeoutId!)
         break
       }
-      case BSC.MESSAGE_CODES.VOTES:
+      case DIFF.MESSAGE_CODES.GET_DIFF:
+      case DIFF.MESSAGE_CODES.DIFF_LAYER:
+      case DIFF.MESSAGE_CODES.FULL_DIFF_LAYER:
         break
       default:
         return
@@ -39,10 +41,10 @@ export class BSC extends Protocol {
     this.emit('message', code, payload)
   }
 
-  sendStatus() {
-    this.sendMessage(BSC.MESSAGE_CODES.CAPABILITIES, [
-      intToBytes(this._version),
-      Uint8Array.from([0]),
+  sendStatus(diffSync: boolean) {
+    this.sendMessage(DIFF.MESSAGE_CODES.CAPABILITIES, [
+      Uint8Array.from(diffSync ? [1] : []),
+      [0x00],
     ])
   }
 
@@ -51,7 +53,7 @@ export class BSC extends Protocol {
    * @param code Message code
    * @param payload Payload (including reqId, e.g. `[1, [437000, 1, 0, 0]]`)
    */
-  sendMessage(code: BSC.MESSAGE_CODES, payload: any) {
+  sendMessage(code: DIFF.MESSAGE_CODES, payload: any) {
     const messageName = this.getMsgPrefix(code)
     const logData = formatLogData(utils.bytesToHex(RLP.encode(payload)), this._verbose)
     const debugMsg = `Send ${messageName} message to ${this._peer._socket.remoteAddress}:${this._peer._socket.remotePort}: ${logData}`
@@ -59,8 +61,10 @@ export class BSC extends Protocol {
     this.debug(messageName, debugMsg)
 
     switch (code) {
-      case BSC.MESSAGE_CODES.CAPABILITIES:
-      case BSC.MESSAGE_CODES.VOTES:
+      case DIFF.MESSAGE_CODES.CAPABILITIES:
+      case DIFF.MESSAGE_CODES.GET_DIFF:
+      case DIFF.MESSAGE_CODES.DIFF_LAYER:
+      case DIFF.MESSAGE_CODES.FULL_DIFF_LAYER:
         break
       default:
         throw new Error(`Unknown code ${code}`)
@@ -77,8 +81,8 @@ export class BSC extends Protocol {
     this._sendMessage(code, payload)
   }
 
-  getMsgPrefix(msgCode: BSC.MESSAGE_CODES): string {
-    return BSC.MESSAGE_CODES[msgCode]
+  getMsgPrefix(msgCode: DIFF.MESSAGE_CODES): string {
+    return DIFF.MESSAGE_CODES[msgCode]
   }
 
   getVersion() {
@@ -86,10 +90,12 @@ export class BSC extends Protocol {
   }
 }
 
-export namespace BSC {
+export namespace DIFF {
   export enum MESSAGE_CODES {
-    // bsc1
+    // diff1
     CAPABILITIES = 0x00,
-    VOTES = 0x01,
+    GET_DIFF = 0x01,
+    DIFF_LAYER = 0x02,
+    FULL_DIFF_LAYER = 0x03,
   }
 }

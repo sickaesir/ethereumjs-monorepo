@@ -82,6 +82,17 @@ const endpoint = {
   },
 }
 
+const peer = {
+  encode(obj: PeerInfo): Uint8Array[] {
+    return [...endpoint.encode(obj), obj.id!]
+  },
+  decode(payload: Uint8Array[]): PeerInfo {
+    let peer = endpoint.decode(payload)
+    peer.id = payload[3]
+    return peer
+  },
+}
+
 type InPing = { [0]: Uint8Array; [1]: Uint8Array[]; [2]: Uint8Array[]; [3]: Uint8Array }
 type OutPing = { version: number; from: PeerInfo; to: PeerInfo; timestamp: number }
 const ping = {
@@ -136,15 +147,12 @@ type InNeighborMsg = { peers: PeerInfo[]; timestamp: number }
 type OutNeighborMsg = { [0]: Uint8Array[][]; [1]: Uint8Array }
 const neighbours = {
   encode(obj: InNeighborMsg /*, privateKey: Uint8Array*/): OutNeighborMsg {
-    return [
-      obj.peers.map((peer: PeerInfo) => endpoint.encode(peer).concat(peer.id! as Uint8Array)),
-      timestamp.encode(obj.timestamp),
-    ]
+    return [obj.peers.map((_peer: PeerInfo) => peer.encode(_peer)), timestamp.encode(obj.timestamp)]
   },
   decode(payload: OutNeighborMsg): InNeighborMsg {
     return {
       peers: payload[0].map((data) => {
-        return { endpoint: endpoint.decode(data), id: data[3] } // hack for id
+        return peer.decode(data)
       }),
       timestamp: timestamp.decode(payload[1]),
     }

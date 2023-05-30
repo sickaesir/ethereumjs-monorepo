@@ -1,10 +1,17 @@
 import { bigIntToBytes, bytesToPrefixedHexString } from '@ethereumjs/util'
 import { debug as createDebugLogger } from 'debug'
 import * as dgram from 'dgram'
-import { bytesToHex, hexToBytes } from 'ethereum-cryptography/utils'
+import { bytesToHex, equalsBytes, hexToBytes } from 'ethereum-cryptography/utils'
 import { EventEmitter } from 'events'
 
-import { createDeferred, devp2pDebug, formatLogId, pk2id, validateForkId } from '../util'
+import {
+  createDeferred,
+  devp2pDebug,
+  formatLogId,
+  pk2id,
+  sortByBytes,
+  validateForkId,
+} from '../util'
 
 import { decode, encode } from './message'
 
@@ -13,6 +20,7 @@ import type { Common } from '@ethereumjs/common'
 import type { Debugger } from 'debug'
 import type { Socket as DgramSocket, RemoteInfo } from 'dgram'
 import type LRUCache from 'lru-cache'
+import { randomBytes } from 'crypto'
 
 const LRU = require('lru-cache')
 
@@ -56,6 +64,7 @@ export class Server extends EventEmitter {
   _socket: DgramSocket | null
   _debug: Debugger
   _common?: Common
+  _neighbours: LRUCache<string, PeerInfo[]>
 
   constructor(dpt: DPT, privateKey: Uint8Array, options: DPTServerOptions) {
     super()
@@ -66,8 +75,9 @@ export class Server extends EventEmitter {
     this._timeout = options.timeout ?? 2000 // 2 * 1000
     this._endpoint = options.endpoint ?? { address: '0.0.0.0', udpPort: null, tcpPort: null }
     this._requests = new Map()
-    this._requestsCache = new LRU({ max: 1000, ttl: 1000, stale: false }) // 1 sec * 1000
+    this._requestsCache = new LRU({ max: 10000, ttl: 10000, stale: false }) // 1 sec * 1000
     this._common = options.common
+    this._neighbours = new LRU({ max: 500 })
 
     const createSocket = options.createSocket ?? dgram.createSocket.bind(null, { type: 'udp4' })
     this._socket = createSocket()
@@ -170,10 +180,16 @@ export class Server extends EventEmitter {
     this.debug(info.typename.toString(), debugMsg)
 
     // add peer if not in our table
+    /*
     const peer = this._dpt.getPeer(peerId)
     if (peer === null && info.typename === 'ping' && info.data.from.udpPort !== null) {
-      setTimeout(() => this.emit('peers', [info.data.from]), 100) // 100 ms
+      setTimeout(() => this.emit('peers', [{
+        id: peerId,
+        address: info.data.from.address,
+        tcpPort: info.data.from.tcpPort
+      }]), 100) // 100 ms
     }
+    */
 
     switch (info.typename) {
       case 'ping': {
@@ -220,10 +236,40 @@ export class Server extends EventEmitter {
       }
 
       case 'neighbours': {
-        this.emit(
-          'peers',
-          info.data.peers.map((peer: any) => peer.endpoint)
+        const remote: PeerInfo = {
+          id: peerId,
+          udpPort: rinfo.port,
+          address: rinfo.address,
+        }
+
+        const pkey = bytesToHex(peerId)
+
+        let neighbours: PeerInfo[] = info.data.peers
+        //neighbours.sort((a: PeerInfo, b: PeerInfo) => sortByBytes(a.id!, b.id!))
+
+        let currentNeighbours: PeerInfo[]
+        if (!this._neighbours.has(pkey)) {
+          this._neighbours.set(pkey, [])
+          currentNeighbours = []
+        } else {
+          currentNeighbours = this._neighbours.get(pkey)!
+        }
+
+        let newNeighbours = neighbours.filter(
+          (peer) =>
+            currentNeighbours.findIndex((currentPeer) => equalsBytes(currentPeer.id!, peer.id!)) < 0
         )
+
+        for (const neighbour of newNeighbours) {
+          const neighbourId = bytesToHex(neighbour.id!)
+          this._neighbours.set(neighbourId, [])
+        }
+
+        if (newNeighbours.length) {
+          this._neighbours.set(pkey, [...currentNeighbours, ...newNeighbours])
+
+          this.emit('peers', newNeighbours)
+        }
         break
       }
 
