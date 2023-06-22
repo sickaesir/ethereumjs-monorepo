@@ -17,10 +17,10 @@ import { devp2pDebug, formatLogData } from '../util.js'
 import { ECIES } from './ecies.js'
 
 import type { ETH, LES } from '../protocol/index.js'
+import type { Protocol } from '../protocol/protocol.js'
 import type { Common } from '@ethereumjs/common'
 import type { Debugger } from 'debug'
 import type { Socket } from 'net'
-import { Protocol } from '../protocol/protocol.js'
 
 const DEBUG_BASE_NAME = 'rlpx:peer'
 const verbose = createDebugLogger('verbose').enabled
