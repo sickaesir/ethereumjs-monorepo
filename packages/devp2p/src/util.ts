@@ -1,13 +1,13 @@
 import { RLP } from '@ethereumjs/rlp'
 import { bytesToBigInt, bytesToPrefixedHexString } from '@ethereumjs/util'
 import { debug as createDebugLogger } from 'debug'
-import { keccak256 as _keccak256 } from 'ethereum-cryptography/keccak'
-import { secp256k1 } from 'ethereum-cryptography/secp256k1'
-import { publicKeyConvert } from 'ethereum-cryptography/secp256k1-compat'
-import { bytesToHex, concatBytes, equalsBytes } from 'ethereum-cryptography/utils'
+import { keccak256 as _keccak256 } from 'ethereum-cryptography/keccak.js'
+import { publicKeyConvert } from 'ethereum-cryptography/secp256k1-compat.js'
+import { secp256k1 } from 'ethereum-cryptography/secp256k1.js'
+import { bytesToHex, concatBytes, equalsBytes } from 'ethereum-cryptography/utils.js'
 
-import type { ETH } from './protocol/eth'
-import type { LES } from './protocol/les'
+import type { ETH } from './protocol/eth.js'
+import type { LES } from './protocol/les.js'
 import type { Common } from '@ethereumjs/common'
 
 export const devp2pDebug = createDebugLogger('devp2p')

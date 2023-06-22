@@ -8,14 +8,14 @@ import {
   bytesToPrefixedHexString,
   intToBytes,
 } from '@ethereumjs/util'
-import { hexToBytes } from 'ethereum-cryptography/utils'
+import { hexToBytes } from 'ethereum-cryptography/utils.js'
 import * as snappy from 'snappyjs'
 
-import { assertEq, formatLogData, formatLogId, validateForkId } from '../util'
+import { assertEq, formatLogData, formatLogId, validateForkId } from '../util.js'
 
-import { EthProtocol, Protocol } from './protocol'
+import { EthProtocol, Protocol } from './protocol.js'
 
-import type { Peer } from '../rlpx/peer'
+import type { Peer } from '../rlpx/peer.js'
 
 export class ETH extends Protocol {
   _status: ETH.StatusMsg | null = null

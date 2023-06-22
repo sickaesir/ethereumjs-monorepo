@@ -1,14 +1,14 @@
 import { bigIntToBytes, bytesToPrefixedHexString } from '@ethereumjs/util'
 import { debug as createDebugLogger } from 'debug'
 import * as dgram from 'dgram'
-import { bytesToHex, equalsBytes, hexToBytes } from 'ethereum-cryptography/utils'
+import { bytesToHex, equalsBytes, hexToBytes } from 'ethereum-cryptography/utils.js'
 import { EventEmitter } from 'events'
 
-import { createDeferred, devp2pDebug, formatLogId, pk2id, validateForkId } from '../util'
+import { createDeferred, devp2pDebug, formatLogId, pk2id, validateForkId } from '../util.js'
 
-import { decode, encode } from './message'
+import { decode, encode } from './message.js'
 
-import type { DPT, PeerInfo } from './dpt'
+import type { DPT, PeerInfo } from './dpt.js'
 import type { Common } from '@ethereumjs/common'
 import type { Debugger } from 'debug'
 import type { Socket as DgramSocket, RemoteInfo } from 'dgram'

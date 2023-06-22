@@ -1,7 +1,11 @@
 import { Block, BlockHeader } from '@ethereumjs/block'
 import { Common, Chain as CommonChain, Hardfork } from '@ethereumjs/common'
 import { DefaultStateManager } from '@ethereumjs/statemanager'
-import { BlobEIP4844Transaction, FeeMarketEIP1559Transaction, Transaction } from '@ethereumjs/tx'
+import {
+  BlobEIP4844Transaction,
+  FeeMarketEIP1559Transaction,
+  LegacyTransaction,
+} from '@ethereumjs/tx'
 import {
   Account,
   Address,
@@ -100,7 +104,7 @@ tape('[PendingBlock]', async (t) => {
       to: to.address,
       value,
     }
-    const tx = Transaction.fromTxData(txData, { common })
+    const tx = LegacyTransaction.fromTxData(txData, { common })
     const signedTx = tx.sign(from.privateKey)
     return signedTx
   }
@@ -210,7 +214,7 @@ tape('[PendingBlock]', async (t) => {
     await txPool.add(txA022)
 
     // This tx will not be added since its too big to fit
-    const txA03 = Transaction.fromTxData(
+    const txA03 = LegacyTransaction.fromTxData(
       {
         data: '0xFE', // INVALID opcode, uses all gas
         gasLimit: 10000000,
@@ -247,7 +251,7 @@ tape('[PendingBlock]', async (t) => {
     await setBalance(vm, A.address, BigInt(5000000000000000))
     await txPool.add(txA01)
     await txPool.add(txA02)
-    const txA03 = Transaction.fromTxData(
+    const txA03 = LegacyTransaction.fromTxData(
       {
         data: '0xFE', // INVALID opcode, uses all gas
         gasLimit: 10000000,
@@ -332,10 +336,10 @@ tape('[PendingBlock]', async (t) => {
     for (let x = 0; x <= 2; x++) {
       const txA01 = BlobEIP4844Transaction.fromTxData(
         {
-          versionedHashes,
-          blobs: [...blobs, ...blobs],
-          kzgCommitments: [...commitments, ...commitments],
-          kzgProofs: [...proofs, ...proofs],
+          versionedHashes: [...versionedHashes, ...versionedHashes, ...versionedHashes],
+          blobs: [...blobs, ...blobs, ...blobs],
+          kzgCommitments: [...commitments, ...commitments, ...commitments],
+          kzgProofs: [...proofs, ...proofs, ...proofs],
           maxFeePerDataGas: 100000000n,
           gasLimit: 0xffffffn,
           maxFeePerGas: 1000000000n,
@@ -368,7 +372,7 @@ tape('[PendingBlock]', async (t) => {
     await setBalance(vm, A.address, BigInt(500000000000000000))
     const parentBlock = await vm.blockchain.getCanonicalHeadBlock!()
     // stub the vm's common set hf to do nothing but stay in cancun
-    vm._common.setHardforkByBlockNumber = (_a: bigint, _b?: bigint, _c?: bigint) => {
+    vm._common.setHardforkBy = () => {
       return vm._common.hardfork()
     }
     const payloadId = await pendingBlock.start(vm, parentBlock)
@@ -376,9 +380,9 @@ tape('[PendingBlock]', async (t) => {
 
     st.ok(block !== undefined && blobsBundles !== undefined)
     st.equal(block!.transactions.length, 2, 'Only two blob txs should be included')
-    st.equal(blobsBundles!.blobs.length, 4, 'maximum 4 blobs should be included')
-    st.equal(blobsBundles!.commitments.length, 4, 'maximum 4 commitments should be included')
-    st.equal(blobsBundles!.proofs.length, 4, 'maximum 4 proofs should be included')
+    st.equal(blobsBundles!.blobs.length, 6, 'maximum 6 blobs should be included')
+    st.equal(blobsBundles!.commitments.length, 6, 'maximum 6 commitments should be included')
+    st.equal(blobsBundles!.proofs.length, 6, 'maximum 6 proofs should be included')
 
     const pendingBlob = blobsBundles!.blobs[0]
     st.ok(pendingBlob !== undefined && equalsBytes(pendingBlob, blobs[0]))
@@ -428,7 +432,7 @@ tape('[PendingBlock]', async (t) => {
     await setBalance(vm, A.address, BigInt(500000000000000000))
     const parentBlock = await vm.blockchain.getCanonicalHeadBlock!()
     // stub the vm's common set hf to do nothing but stay in cancun
-    vm._common.setHardforkByBlockNumber = (_a: bigint, _b?: bigint, _c?: bigint) => {
+    vm._common.setHardforkBy = () => {
       return vm._common.hardfork()
     }
     const payloadId = await pendingBlock.start(vm, parentBlock)

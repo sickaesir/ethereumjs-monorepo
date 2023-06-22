@@ -1,7 +1,7 @@
 'use strict'
 
-export * from './bsc'
-export * from './diff'
-export * from './eth'
-export * from './les'
-export * from './snap'
+export * from './bsc.js'
+export * from './diff.js'
+export * from './eth.js'
+export * from './les.js'
+export * from './snap.js'

@@ -1,10 +1,10 @@
 import { zeros } from '@ethereumjs/util'
 
-import type { EVM, EVMResult, ExecResult } from './evm'
-import type { InterpreterStep } from './interpreter'
-import type { Message } from './message'
-import type { OpHandler, OpcodeList } from './opcodes'
-import type { AsyncDynamicGasHandler, SyncDynamicGasHandler } from './opcodes/gas'
+import type { EVM, EVMResult, ExecResult } from './evm.js'
+import type { InterpreterStep } from './interpreter.js'
+import type { Message } from './message.js'
+import type { AsyncDynamicGasHandler, SyncDynamicGasHandler } from './opcodes/gas.js'
+import type { OpHandler, OpcodeList } from './opcodes/index.js'
 import type { EVMStateManagerInterface } from '@ethereumjs/common'
 import type { Address, AsyncEventEmitter } from '@ethereumjs/util'
 
@@ -95,6 +95,10 @@ export interface EVMRunCallOpts {
    * Addresses to selfdestruct. Defaults to none.
    */
   selfdestruct?: { [k: string]: boolean }
+  /**
+   * Created addresses in current context. Used in EIP 6780
+   */
+  createdAddresses?: Set<string>
   /**
    * Skip balance checks if true. If caller balance is less than message value,
    * sets balance to message value to ensure execution doesn't fail.
